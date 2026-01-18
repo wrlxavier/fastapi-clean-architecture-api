@@ -26,7 +26,7 @@ make install
 
 ## Developer workflow
 
-This project uses Ruff for linting/formatting and pre-commit for automated checks.
+This project uses Ruff for linting/formatting, mypy (strict) for type checking, and pre-commit for automated checks.
 
 ### One-shot checks
 
@@ -45,7 +45,7 @@ make format-check
 ### Type checking
 
 ```bash
-make typecheck
+make typecheck  # runs mypy --strict using pyproject.toml config
 ```
 
 ### Tests
