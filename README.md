@@ -18,12 +18,6 @@ Clean Architecture layers:
 - Python >= 3.12
 - uv installed
 
-## Installing dependencies (uv)
-
-```bash
-make install
-```
-
 ## Developer workflow
 
 This project uses Ruff for linting/formatting, mypy (strict) for type checking, and pre-commit for automated checks.
