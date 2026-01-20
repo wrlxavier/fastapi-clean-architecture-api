@@ -27,7 +27,7 @@ typecheck:
 	uv run mypy --strict app/src
 
 test:
-	uv run pytest
+	PYTHONPATH=app/src uv run pytest
 
 pre-commit:
 	uv run pre-commit run --all-files
