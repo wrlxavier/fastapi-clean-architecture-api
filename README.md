@@ -66,6 +66,14 @@ make pre-commit
 
 Create a `.env` file in the project root based on the `.env.example` file and set the required environment variables. You can easily copy the example file using the following command:
 
+For the database connection, you can either provide `DATABASE_URL` directly, or use the discrete `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_USER`, `DATABASE_PASSWORD`, and `DATABASE_NAME` variables.
+
+Example:
+
+```bash
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/fastapi_clean_architecture_api
+```
+
 - Linux/MacOS:
 
 ```bash
