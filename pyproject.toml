@@ -6,6 +6,8 @@ dependencies = [
     "fastapi>=0.128.0",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",
+    "psycopg[binary]>=3.2.12",
+    "sqlalchemy>=2.0.44",
 ]
 
 [tool.ruff]
@@ -88,3 +90,8 @@ files = ["app/src"]
 strict = true
 warn_unused_configs = true
 plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: tests that require a running PostgreSQL database",
+]
