@@ -1,6 +1,7 @@
 """SQLAlchemy engine and session factory helpers."""
 
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from infrastructure.config.settings import Settings, get_settings
@@ -27,3 +28,13 @@ def create_session_factory(
         engine if engine is not None else create_engine_from_settings(settings)
     )
     return sessionmaker(bind=bound_engine, autoflush=False, expire_on_commit=False)
+
+
+def is_database_reachable(session_factory: sessionmaker[Session]) -> bool:
+    """Return whether the database can be reached with a lightweight query."""
+    try:
+        with session_factory() as session:
+            session.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        return False
+    return True

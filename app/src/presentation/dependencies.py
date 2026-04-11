@@ -13,7 +13,11 @@ from application import (
     ListTasksUseCase,
     TransitionTaskUseCase,
 )
-from infrastructure import SqlAlchemyUnitOfWork, create_session_factory
+from infrastructure import (
+    SqlAlchemyUnitOfWork,
+    create_session_factory,
+    is_database_reachable,
+)
 
 
 class SystemClock:
@@ -33,6 +37,17 @@ def get_session_factory() -> sessionmaker[Session]:
 SessionFactoryDependency = Annotated[
     sessionmaker[Session],
     Depends(get_session_factory),
+]
+
+
+def get_database_readiness(session_factory: SessionFactoryDependency) -> bool:
+    """Check whether the configured database dependency is reachable."""
+    return is_database_reachable(session_factory)
+
+
+DatabaseReadinessDependency = Annotated[
+    bool,
+    Depends(get_database_readiness),
 ]
 
 
