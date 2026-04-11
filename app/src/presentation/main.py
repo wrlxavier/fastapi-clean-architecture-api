@@ -8,10 +8,11 @@ from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import JSONResponse
 
 from infrastructure.logging import (
-    bind_request_id,
+    CORRELATION_ID_HEADER,
+    bind_correlation_id,
     configure_logging,
-    generate_request_id,
-    reset_request_id,
+    reset_correlation_id,
+    resolve_correlation_id,
 )
 from presentation.routers import api_router
 
@@ -68,13 +69,17 @@ def create_app() -> FastAPI:
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
-        request_id = generate_request_id()
-        request.state.request_id = request_id
-        request_token = bind_request_id(request_id)
+        correlation_id = resolve_correlation_id(
+            request.headers.get(CORRELATION_ID_HEADER)
+        )
+        request.state.correlation_id = correlation_id
+        request.state.request_id = correlation_id
+        request_token = bind_correlation_id(correlation_id)
         start_time = perf_counter()
 
         try:
             response = await call_next(request)
+            response.headers[CORRELATION_ID_HEADER] = correlation_id
 
             duration_ms = round((perf_counter() - start_time) * 1000, 3)
             log_extra: dict[str, str | int | float] = {
@@ -110,7 +115,7 @@ def create_app() -> FastAPI:
             log_method(log_message, extra=log_extra)
             return response
         finally:
-            reset_request_id(request_token)
+            reset_correlation_id(request_token)
 
     app.include_router(api_router)
     return app

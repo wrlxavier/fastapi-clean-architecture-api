@@ -1,4 +1,4 @@
-"""Structured logging configuration and request-scoped log context."""
+"""Structured logging configuration and request-scoped correlation context."""
 
 from __future__ import annotations
 
@@ -15,30 +15,43 @@ from infrastructure.config.settings import (
     get_observability_settings,
 )
 
-_request_id_context: ContextVar[str | None] = ContextVar(
-    "request_id",
+CORRELATION_ID_HEADER = "X-Correlation-ID"
+
+_correlation_id_context: ContextVar[str | None] = ContextVar(
+    "correlation_id",
     default=None,
 )
 
 
-def generate_request_id() -> str:
-    """Generate a request identifier for per-request log correlation."""
-    return uuid4().hex
+def generate_correlation_id() -> str:
+    """Generate a correlation identifier for per-request tracing."""
+    return str(uuid4())
 
 
-def bind_request_id(request_id: str) -> Token[str | None]:
-    """Bind the current request identifier to the execution context."""
-    return _request_id_context.set(request_id)
+def resolve_correlation_id(correlation_id: str | None) -> str:
+    """Reuse the client-provided correlation ID when present."""
+    if correlation_id is None:
+        return generate_correlation_id()
+
+    normalized_correlation_id = correlation_id.strip()
+    if normalized_correlation_id:
+        return normalized_correlation_id
+    return generate_correlation_id()
 
 
-def reset_request_id(token: Token[str | None]) -> None:
-    """Reset the request identifier for the current execution context."""
-    _request_id_context.reset(token)
+def bind_correlation_id(correlation_id: str) -> Token[str | None]:
+    """Bind the current correlation identifier to the execution context."""
+    return _correlation_id_context.set(correlation_id)
 
 
-def get_request_id() -> str | None:
-    """Return the request identifier bound to the current execution context."""
-    return _request_id_context.get()
+def reset_correlation_id(token: Token[str | None]) -> None:
+    """Reset the correlation identifier for the current execution context."""
+    _correlation_id_context.reset(token)
+
+
+def get_correlation_id() -> str | None:
+    """Return the correlation identifier bound to the current execution context."""
+    return _correlation_id_context.get()
 
 
 class JsonFormatter(logging.Formatter):
@@ -59,9 +72,10 @@ class JsonFormatter(logging.Formatter):
             "message": record.getMessage(),
         }
 
-        request_id = get_request_id()
-        if request_id is not None:
-            payload["request_id"] = request_id
+        correlation_id = get_correlation_id()
+        if correlation_id is not None:
+            payload["correlation_id"] = correlation_id
+            payload["request_id"] = correlation_id
 
         for attribute in (
             "path",

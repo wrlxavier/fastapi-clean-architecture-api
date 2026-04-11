@@ -1,4 +1,5 @@
 import json
+import logging
 from collections.abc import Iterator
 from typing import cast
 
@@ -7,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from domain import InvalidTaskTransitionError, TaskId
 from infrastructure.config.settings import get_observability_settings
+from infrastructure.logging import CORRELATION_ID_HEADER
 from presentation.dependencies import get_transition_task_use_case
 from presentation.main import create_app
 
@@ -66,7 +68,50 @@ def test_health_requests_emit_structured_logs(
     assert request_log.get("status_code") == 200
     assert isinstance(request_log.get("duration_ms"), int | float)
     assert request_log.get("duration_ms") is not None
-    assert isinstance(request_log.get("request_id"), str)
+    correlation_id = request_log.get("correlation_id")
+    assert isinstance(correlation_id, str)
+    assert request_log.get("request_id") == correlation_id
+    assert response.headers[CORRELATION_ID_HEADER] == correlation_id
+
+
+def test_correlation_id_header_is_reused_across_request_logs(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    app = create_app()
+    trace_logger = logging.getLogger("tests.trace")
+
+    @app.get("/trace")
+    def trace() -> dict[str, str]:
+        trace_logger.info("Internal operation executed")
+        return {"status": "ok"}
+
+    client = TestClient(app)
+    correlation_id = "my-test-123"
+
+    response = client.get(
+        "/trace",
+        headers={CORRELATION_ID_HEADER: correlation_id},
+    )
+
+    assert response.status_code == 200
+    assert response.headers[CORRELATION_ID_HEADER] == correlation_id
+
+    logs = _load_json_logs(capsys.readouterr().out)
+    internal_log = next(
+        log
+        for log in logs
+        if log.get("message") == "Internal operation executed"
+    )
+    request_log = next(
+        log
+        for log in logs
+        if log.get("message") == "Request completed" and log.get("path") == "/trace"
+    )
+
+    assert internal_log.get("correlation_id") == correlation_id
+    assert internal_log.get("request_id") == correlation_id
+    assert request_log.get("correlation_id") == correlation_id
+    assert request_log.get("request_id") == correlation_id
 
 
 def test_handled_errors_emit_specific_error_codes(
