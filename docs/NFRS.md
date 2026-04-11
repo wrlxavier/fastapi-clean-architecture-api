@@ -6,6 +6,31 @@ Non-Functional Requirements (NFRs) define the quality attributes and operational
 
 Each NFR below is **measurable and verifiable**, with clear acceptance criteria that can be checked by automated tools, tests, or manual inspection.
 
+## v0.1.0 Verification Status
+
+Verification date: `2026-04-11`
+
+The sections below describe the target NFR standard for the broader product contract. The table here records what is already implemented in the current release, what is only partial for the shipped task slice, and what remains deferred or external.
+
+| Area | Status | Verification notes |
+| --- | --- | --- |
+| Security: BOLA for current task slice | Implemented | Cross-user integration tests cover create, list, transition, and assign task flows and return `404 Not Found` concealment responses for foreign resources. Deferred: broader workspace/project/user CRUD surfaces are not public yet. |
+| Security: Resource consumption | Partial | Task list pagination is bounded to `1..100` and covered by unit and integration tests. Deferred: request/DB timeout settings and rate limiting are documented goals, not implemented controls. |
+| Security: Reverse proxy behavior | Implemented | Nginx forwards `X-Forwarded-*` headers, the app trusts configured proxy hops, and `/docs` was verified through Nginx on `2026-04-11`. Deferred: HTTPS/TLS termination and HSTS are not configured in the local HTTP stack. |
+| Security: Input validation | Partial | FastAPI and Pydantic validate the shipped task endpoints, and SQLAlchemy ORM is used for persistence. Deferred: explicit malicious-payload security tests are not yet part of the suite. |
+| Reliability: Liveness and readiness | Implemented | `/health` and `/ready` are covered by smoke tests, and both endpoints returned successful responses through Nginx during local verification. |
+| Reliability: Graceful shutdown | Partial | Docker uses exec-form startup and `docker compose down` completed cleanly during verification. Deferred: no explicit FastAPI lifespan shutdown hooks or dedicated shutdown tests exist yet. |
+| Observability | Implemented | Structured JSON logs, error codes, request duration, correlation IDs, and stdout logging are implemented and covered by unit tests. |
+| Testing and code quality | Partial | Ruff, format check, mypy, and pytest passed locally on `2026-04-11`; integration tests are present but require `TEST_DATABASE_URL`. Deferred: coverage reports and threshold enforcement are not configured. |
+| Database and migrations | Partial | Alembic migrations, upgrade/downgrade commands, and the current task schema are implemented. Deferred: user/workspace-member schema and some target indexes/constraints belong to deferred endpoints. |
+| DevOps and containerization | Implemented | The Dockerfile is multi-stage, runs as a non-root user, and uses exec-form `CMD`; `docker compose config --quiet` and `docker compose up -d --build` succeeded locally. |
+| CI | Partial | `.github/workflows/ci.yml` runs quality, integration, and Docker build jobs on pull requests. External/manual: branch protection and run-history verification live in GitHub settings, not the repository. |
+| API documentation | Partial | `/docs` and `/openapi.json` are available and tested. Deferred: example payload metadata is still sparse, and only the shipped task slice appears in the public schema. |
+| Performance | Partial | A k6 workload, a seed script, and a documented local baseline exist in `docs/PERFORMANCE.md`. Deferred: automated SLO enforcement in CI is not implemented. |
+| Release | Partial | Version `0.1.0` and release checklist/notes exist. External/manual: the `v0.1.0` git tag and published GitHub Release are manual release steps and are not present in the local workspace yet. |
+
+Unless a row above is marked as implemented, the detailed sections below describe the target state rather than a guarantee that the current release already fulfills every item.
+
 ---
 
 ## 1. Security
@@ -697,13 +722,13 @@ curl http://localhost/docs
 ## Release Checklist for v{VERSION}
 
 - [ ] All CI jobs pass (lint, type check, tests, build).
-- [ ] CHANGELOG.md is updated with new features, fixes, and breaking changes.
+- [ ] Release notes in `docs/RELEASE.md` and/or the GitHub Release draft are updated with new features, fixes, and deferred items.
 - [ ] README and docs (CONTRACT.md, NFRS.md, ARCHITECTURE.md) are current.
 - [ ] No open issues blocking the release (or marked as post-release).
 - [ ] Manual smoke test on Compose environment:
   - [ ] `docker compose up -d` starts all services.
   - [ ] `/health` and `/ready` respond correctly.
-  - [ ] Can login, create workspace, project, task via Swagger UI or curl.
+  - [ ] Current public task workflow can be exercised via Swagger UI or curl (`POST /v1/tasks`, `GET /v1/tasks`, transition, assign).
   - [ ] `docker compose down` shuts down gracefully.
 - [ ] Database migrations are tested (clean DB → upgrade head → queries work).
 - [ ] Performance baselines are met (load test passes SLOs).

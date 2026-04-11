@@ -6,20 +6,22 @@ A production-ready FastAPI backend portfolio project that demonstrates Clean Arc
 
 This repository is intentionally architecture-first. The business domain is a Workspace -> Project -> Task system, but the main goal is to show how to structure a Python API so that core rules stay isolated from FastAPI, SQLAlchemy, and deployment concerns.
 
-Implemented today:
-
-- FastAPI app with `/health`, `/ready`, `/docs`, and `/openapi.json`
-- Task endpoints for create, list with pagination, status transition, and assignment
-- SQLAlchemy repositories and Unit of Work backed by PostgreSQL
-- Alembic migrations and a Docker Compose stack with PostgreSQL, API, and Nginx
-- Structured request logging, correlation IDs, and reverse-proxy-aware request handling
-- Smoke, unit, and integration tests
-
 Scope note:
 
 - [docs/CONTRACT.md](docs/CONTRACT.md) describes the broader product contract and target API surface for the project.
 - The current implementation focuses on the task-oriented vertical slice of that contract.
 - Authentication in the current slice is represented by the `X-User-ID` header while JWT-related settings and application ports are already modeled for later milestones.
+
+## What's Implemented In v0.1.0
+
+- FastAPI app with `/health`, `/ready`, `/docs`, and `/openapi.json`
+- Task workflow endpoints: `POST /v1/tasks`, `GET /v1/tasks`, `POST /v1/tasks/{task_id}/transition`, and `POST /v1/tasks/{task_id}/assign`
+- PostgreSQL persistence through SQLAlchemy repositories, a Unit of Work, and Alembic migrations for `workspaces`, `projects`, `tasks`, and `task_events`
+- Docker Compose orchestration for PostgreSQL, the API, and Nginx, including reverse-proxy-aware request handling
+- Structured JSON logging, correlation IDs, readiness checks, and task audit events
+- Ruff, mypy, smoke tests, unit tests, integration tests, and a GitHub Actions workflow for quality, integration, and Docker image builds
+
+The broader contract still defers JWT authentication, user registration, workspace and project CRUD routes, task detail/update/delete routes, and the optional `/metrics` endpoint.
 
 ## Documentation
 
