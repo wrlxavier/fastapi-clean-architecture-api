@@ -3,6 +3,8 @@ from datetime import UTC, datetime
 from fastapi.testclient import TestClient
 
 from application import (
+    AssignTaskCommand,
+    AssignTaskResult,
     ListTasksItem,
     ListTasksQuery,
     ListTasksResult,
@@ -11,6 +13,7 @@ from application import (
 )
 from domain import InvalidTaskTransitionError, ProjectId, TaskId, TaskStatus, UserId
 from presentation.dependencies import (
+    get_assign_task_use_case,
     get_list_tasks_use_case,
     get_transition_task_use_case,
 )
@@ -63,6 +66,18 @@ class StubTransitionTaskUseCase:
             raise self._error
         if self._result is None:
             raise AssertionError("Transition task route test is missing a stub result.")
+        return self._result
+
+
+class StubAssignTaskUseCase:
+    def __init__(self, *, result: AssignTaskResult | None = None) -> None:
+        self.command: AssignTaskCommand | None = None
+        self._result = result
+
+    def execute(self, command: AssignTaskCommand) -> AssignTaskResult:
+        self.command = command
+        if self._result is None:
+            raise AssertionError("Assign task route test is missing a stub result.")
         return self._result
 
 
@@ -179,3 +194,42 @@ def test_transition_task_route_returns_conflict_for_invalid_transition() -> None
             "target_status": "doing",
         },
     }
+
+
+def test_assign_task_route_returns_updated_task() -> None:
+    task_id = TaskId.new()
+    project_id = ProjectId.new()
+    assignee_id = UserId.new()
+    updated_at = datetime(2026, 4, 11, 17, 30, tzinfo=UTC)
+    stub_use_case = StubAssignTaskUseCase(
+        result=AssignTaskResult(
+            id=task_id,
+            project_id=project_id,
+            title="Assign implementation work",
+            created_by=UserId.new(),
+            description=None,
+            status=TaskStatus.TODO,
+            priority=None,
+            due_date=None,
+            assigned_to=assignee_id,
+            created_at=updated_at,
+            updated_at=updated_at,
+        )
+    )
+    app = create_app()
+    app.dependency_overrides[get_assign_task_use_case] = lambda: stub_use_case
+
+    try:
+        client = TestClient(app)
+        response = client.post(
+            f"/v1/tasks/{task_id.value}/assign",
+            json={"user_id": str(assignee_id.value)},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert stub_use_case.command is not None
+    assert stub_use_case.command.task_id == task_id
+    assert stub_use_case.command.user_id == assignee_id
+    assert response.json()["assigned_to"] == str(assignee_id.value)

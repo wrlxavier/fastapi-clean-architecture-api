@@ -7,6 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 
 from application import (
+    AssignTaskCommand,
+    AssignTaskResult,
+    AssignTaskUseCase,
     CreateTaskCommand,
     CreateTaskResult,
     CreateTaskUseCase,
@@ -22,11 +25,13 @@ from application import (
 )
 from domain import InvalidTaskTransitionError, ProjectId, TaskId, UserId
 from presentation.dependencies import (
+    get_assign_task_use_case,
     get_create_task_use_case,
     get_list_tasks_use_case,
     get_transition_task_use_case,
 )
 from presentation.schemas.tasks import (
+    AssignTaskRequestSchema,
     CreateTaskRequestSchema,
     TaskListResponseSchema,
     TaskResponseSchema,
@@ -50,9 +55,14 @@ TransitionTaskUseCaseDependency = Annotated[
     Depends(get_transition_task_use_case),
 ]
 
+AssignTaskUseCaseDependency = Annotated[
+    AssignTaskUseCase,
+    Depends(get_assign_task_use_case),
+]
+
 
 def _to_task_response(
-    task: CreateTaskResult | ListTasksItem | TransitionTaskResult,
+    task: CreateTaskResult | ListTasksItem | TransitionTaskResult | AssignTaskResult,
 ) -> TaskResponseSchema:
     return TaskResponseSchema(
         id=task.id.value,
@@ -162,5 +172,28 @@ def transition_task(
         ) from error
     except InvalidTaskTransitionError as error:
         return _invalid_transition_response(error)
+
+    return _to_task_response(result)
+
+
+@router.post("/{task_id}/assign", response_model=TaskResponseSchema)
+def assign_task(
+    task_id: UUID,
+    payload: AssignTaskRequestSchema,
+    use_case: AssignTaskUseCaseDependency,
+) -> TaskResponseSchema:
+    """Assign a task to a user and record an audit event."""
+    command = AssignTaskCommand(
+        task_id=TaskId(task_id),
+        user_id=UserId(payload.user_id),
+    )
+
+    try:
+        result = use_case.execute(command)
+    except TaskNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task '{error.task_id.value}' was not found.",
+        ) from error
 
     return _to_task_response(result)

@@ -7,7 +7,12 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.orm import Session, sessionmaker
 
-from application import CreateTaskUseCase, ListTasksUseCase, TransitionTaskUseCase
+from application import (
+    AssignTaskUseCase,
+    CreateTaskUseCase,
+    ListTasksUseCase,
+    TransitionTaskUseCase,
+)
 from infrastructure import SqlAlchemyUnitOfWork, create_session_factory
 
 
@@ -53,6 +58,16 @@ def get_transition_task_use_case(
 ) -> TransitionTaskUseCase:
     """Provide the transition task use case with runtime infrastructure wiring."""
     return TransitionTaskUseCase(
+        unit_of_work=SqlAlchemyUnitOfWork(session_factory),
+        clock=SystemClock(),
+    )
+
+
+def get_assign_task_use_case(
+    session_factory: SessionFactoryDependency,
+) -> AssignTaskUseCase:
+    """Provide the assign task use case with runtime infrastructure wiring."""
+    return AssignTaskUseCase(
         unit_of_work=SqlAlchemyUnitOfWork(session_factory),
         clock=SystemClock(),
     )

@@ -13,6 +13,9 @@ from application.ports import (
     WorkspaceRepository,
 )
 from application.use_cases import (
+    AssignTaskCommand,
+    AssignTaskResult,
+    AssignTaskUseCase,
     CreateTaskCommand,
     CreateTaskResult,
     CreateTaskUseCase,
@@ -27,6 +30,9 @@ from application.use_cases import (
 
 __all__ = [
     "ApplicationError",
+    "AssignTaskCommand",
+    "AssignTaskResult",
+    "AssignTaskUseCase",
     "Clock",
     "CreateTaskCommand",
     "CreateTaskResult",

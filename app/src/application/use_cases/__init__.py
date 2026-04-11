@@ -1,5 +1,10 @@
 """Application use cases exposed to outer layers."""
 
+from application.use_cases.assign_task import (
+    AssignTaskCommand,
+    AssignTaskResult,
+    AssignTaskUseCase,
+)
 from application.use_cases.create_task import (
     CreateTaskCommand,
     CreateTaskResult,
@@ -18,6 +23,9 @@ from application.use_cases.transition_task import (
 )
 
 __all__ = [
+    "AssignTaskCommand",
+    "AssignTaskResult",
+    "AssignTaskUseCase",
     "CreateTaskCommand",
     "CreateTaskResult",
     "CreateTaskUseCase",

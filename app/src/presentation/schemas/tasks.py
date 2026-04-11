@@ -49,6 +49,12 @@ class TransitionTaskRequestSchema(BaseModel):
     status: TaskStatus
 
 
+class AssignTaskRequestSchema(BaseModel):
+    """Request payload for assigning a task to a user."""
+
+    user_id: UUID
+
+
 class TaskResponseSchema(BaseModel):
     """Response payload for task resources."""
 

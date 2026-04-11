@@ -74,3 +74,13 @@ class Task:
 
         self.status = target_status
         self.updated_at = occurred_at if occurred_at is not None else _utc_now()
+
+    def assign_to_user(
+        self,
+        assignee_id: UserId,
+        *,
+        occurred_at: datetime | None = None,
+    ) -> None:
+        """Assign the task to a user and refresh its update timestamp."""
+        self.assigned_to = assignee_id
+        self.updated_at = occurred_at if occurred_at is not None else _utc_now()
