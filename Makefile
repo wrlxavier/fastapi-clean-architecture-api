@@ -1,4 +1,4 @@
-.PHONY: help install lint format format-check typecheck test test-integration pre-commit check migrate migrate-down compose-up compose-down compose-logs
+.PHONY: help install lint format format-check typecheck test test-integration pre-commit check migrate migrate-down compose-up compose-down compose-logs load-test-seed load-test
 
 help:
 	@echo "Targets:"
@@ -14,6 +14,8 @@ help:
 	@echo "  make compose-up   - Build and start the Docker Compose stack"
 	@echo "  make compose-down - Stop the Docker Compose stack"
 	@echo "  make compose-logs - Tail Docker Compose logs"
+	@echo "  make load-test-seed - Seed deterministic workspace/project data for local load tests"
+	@echo "  make load-test    - Run the k6 task workflow load test"
 	@echo "  make pre-commit   - Run pre-commit on all files (uv run pre-commit ...)"
 	@echo "  make check        - lint + format-check + typecheck + test"
 
@@ -52,6 +54,12 @@ compose-down:
 
 compose-logs:
 	docker compose logs -f
+
+load-test-seed:
+	docker compose run --rm --no-deps api python scripts/seed_load_test_data.py
+
+load-test:
+	bash scripts/run_load_tests.sh
 
 pre-commit:
 	uv run pre-commit run --all-files
