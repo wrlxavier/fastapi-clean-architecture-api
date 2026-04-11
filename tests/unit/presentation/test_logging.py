@@ -98,9 +98,7 @@ def test_correlation_id_header_is_reused_across_request_logs(
 
     logs = _load_json_logs(capsys.readouterr().out)
     internal_log = next(
-        log
-        for log in logs
-        if log.get("message") == "Internal operation executed"
+        log for log in logs if log.get("message") == "Internal operation executed"
     )
     request_log = next(
         log

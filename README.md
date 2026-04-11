@@ -77,6 +77,27 @@ Nginx forwards `Host`, `X-Real-IP`, `X-Forwarded-For`, `X-Forwarded-Proto`, and 
 
 This project uses Ruff for linting/formatting, mypy (strict) for type checking, and pre-commit for automated checks.
 
+## GitHub Actions CI
+
+The repository includes a GitHub Actions workflow at `.github/workflows/ci.yml` with three required jobs:
+
+- `Quality`: runs `ruff check`, `ruff format --check`, `mypy --strict`, and `pytest`.
+- `Integration`: starts PostgreSQL 17, applies Alembic migrations, and runs `tests/integration`.
+- `Docker Build`: builds the production Docker image from `Dockerfile`.
+
+The workflow runs on every pull request, on pushes to `main` and `staging`, and can also be triggered manually from the Actions tab.
+
+## Branch protection
+
+Branch protection must be configured manually in GitHub after the workflow has run at least once:
+
+1. Open the repository on GitHub and go to `Settings` -> `Branches`.
+2. Add or edit a branch protection rule for `main`.
+3. Enable `Require a pull request before merging`.
+4. Enable `Require status checks to pass before merging`.
+5. Mark these checks as required: `Quality`, `Integration`, and `Docker Build`.
+6. Repeat the same rule for `staging` if that branch is part of your review flow.
+
 ### One-shot checks
 
 ```bash

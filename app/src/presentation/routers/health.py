@@ -1,6 +1,6 @@
 """This module contains the health and readiness routers."""
 
-from fastapi import APIRouter, Response, status as http_status
+from fastapi import APIRouter, Response, status
 
 from presentation.dependencies import DatabaseReadinessDependency
 from presentation.schemas.heath import (
@@ -25,7 +25,7 @@ def ready(
 ) -> ReadinessResponseSchema:
     """Readiness check endpoint."""
     if not database_ready:
-        response.status_code = http_status.HTTP_503_SERVICE_UNAVAILABLE
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return ReadinessResponseSchema(
             status="unavailable",
             checks=ReadinessChecksSchema(database="down"),

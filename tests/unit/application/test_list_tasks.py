@@ -28,7 +28,9 @@ class InMemoryTaskRepository:
         return sum(1 for task in self._tasks if task.project_id == project_id)
 
     def remove(self, task: Task) -> None:
-        self._tasks = [saved_task for saved_task in self._tasks if saved_task.id != task.id]
+        self._tasks = [
+            saved_task for saved_task in self._tasks if saved_task.id != task.id
+        ]
 
 
 class FakeUnitOfWork:

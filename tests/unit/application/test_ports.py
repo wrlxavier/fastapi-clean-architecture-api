@@ -14,10 +14,10 @@ from application import (
 from domain import (
     Project,
     ProjectId,
+    Task,
     TaskEvent,
     TaskEventId,
     TaskEventType,
-    Task,
     TaskId,
     UserId,
     Workspace,
