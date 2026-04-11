@@ -2,11 +2,17 @@
 
 import logging
 from collections.abc import Awaitable, Callable
+from ipaddress import ip_address, ip_network
 from time import perf_counter
 
 from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import JSONResponse
+from starlette.datastructures import MutableHeaders
 
+from infrastructure.config.settings import (
+    ObservabilitySettings,
+    get_observability_settings,
+)
 from infrastructure.logging import (
     CORRELATION_ID_HEADER,
     bind_correlation_id,
@@ -17,6 +23,78 @@ from infrastructure.logging import (
 from presentation.routers import api_router
 
 logger = logging.getLogger(__name__)
+
+
+def _first_forwarded_value(value: str | None) -> str | None:
+    """Return the first value from a comma-separated forwarded header."""
+    if value is None:
+        return None
+
+    first_value = value.split(",", maxsplit=1)[0].strip()
+    return first_value or None
+
+
+def _is_trusted_proxy(
+    client_host: str | None,
+    trusted_proxy_hosts: tuple[str, ...],
+) -> bool:
+    """Return whether the immediate client is an allowed reverse proxy."""
+    if client_host is None:
+        return False
+
+    if "*" in trusted_proxy_hosts:
+        return True
+
+    try:
+        client_ip = ip_address(client_host)
+    except ValueError:
+        client_ip = None
+
+    for trusted_proxy in trusted_proxy_hosts:
+        if trusted_proxy == client_host:
+            return True
+
+        if client_ip is None:
+            continue
+
+        try:
+            if client_ip in ip_network(trusted_proxy, strict=False):
+                return True
+        except ValueError:
+            continue
+
+    return False
+
+
+def _apply_proxy_headers(
+    request: Request,
+    observability_settings: ObservabilitySettings,
+) -> None:
+    """Normalize request metadata from trusted proxy headers."""
+    if not observability_settings.proxy_headers_enabled:
+        return
+
+    client = request.client
+    client_host = client.host if client is not None else None
+    if not _is_trusted_proxy(
+        client_host,
+        observability_settings.trusted_proxy_hosts,
+    ):
+        return
+
+    headers = MutableHeaders(scope=request.scope)
+
+    forwarded_for = _first_forwarded_value(headers.get("x-forwarded-for"))
+    if forwarded_for is not None:
+        request.scope["client"] = (forwarded_for, client.port if client else 0)
+
+    forwarded_proto = _first_forwarded_value(headers.get("x-forwarded-proto"))
+    if forwarded_proto is not None:
+        request.scope["scheme"] = forwarded_proto
+
+    forwarded_host = _first_forwarded_value(headers.get("x-forwarded-host"))
+    if forwarded_host is not None:
+        headers["host"] = forwarded_host
 
 
 def _default_error_code(status_code: int) -> str:
@@ -40,6 +118,7 @@ def create_app() -> FastAPI:
         FastAPI: The configured FastAPI application instance.
     """
     configure_logging()
+    observability_settings = get_observability_settings()
     app = FastAPI(title="FastAPI Clean Architecture API")
 
     @app.exception_handler(Exception)
@@ -69,6 +148,7 @@ def create_app() -> FastAPI:
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
+        _apply_proxy_headers(request, observability_settings)
         correlation_id = resolve_correlation_id(
             request.headers.get(CORRELATION_ID_HEADER)
         )

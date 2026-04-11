@@ -23,11 +23,26 @@ class ObservabilitySettings(BaseSettings):
 
     app_env: str = Field(alias="APP_ENV", default="development")
     log_level: str = Field(alias="LOG_LEVEL", default="INFO")
+    proxy_headers_enabled: bool = Field(alias="PROXY_HEADERS_ENABLED", default=True)
+    forwarded_allow_ips: str = Field(
+        alias="FORWARDED_ALLOW_IPS",
+        default="127.0.0.1,::1",
+    )
 
     @property
     def is_development(self) -> bool:
         """Return whether the current runtime should emit dev diagnostics."""
         return self.app_env.lower() in {"dev", "development", "local"}
+
+    @property
+    def trusted_proxy_hosts(self) -> tuple[str, ...]:
+        """Return the configured trusted proxy IPs or CIDR ranges."""
+        values = tuple(
+            entry.strip()
+            for entry in self.forwarded_allow_ips.split(",")
+            if entry.strip()
+        )
+        return values or ("127.0.0.1", "::1")
 
 
 def build_sqlalchemy_database_url(

@@ -26,6 +26,8 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      PROXY_HEADERS_ENABLED: ${PROXY_HEADERS_ENABLED:-true}
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-*}
       DATABASE_HOST: postgres
       DATABASE_PORT: "5432"
       DATABASE_USER: ${DATABASE_USER:-postgres}

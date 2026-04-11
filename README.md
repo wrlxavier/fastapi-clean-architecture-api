@@ -48,6 +48,16 @@ The API is available through Nginx by default at:
 
 You can override the published Nginx port with `NGINX_PORT` in `.env`.
 
+## Reverse proxy behavior
+
+The stack is configured so the application behaves correctly behind Nginx:
+
+- Nginx preserves the original external host header with `$http_host`, which keeps non-default ports such as `:8080` available to FastAPI.
+- Nginx forwards `X-Forwarded-For`, `X-Forwarded-Proto`, and `X-Forwarded-Host` so the app can reconstruct the original client IP, scheme, and host.
+- The application trusts proxy headers only when `PROXY_HEADERS_ENABLED=true` and the immediate client matches `FORWARDED_ALLOW_IPS`.
+
+Docker Compose sets `FORWARDED_ALLOW_IPS=*` because the API container is only reachable from the internal Docker network and the Nginx container receives a dynamic IP there. If you deploy this stack in another environment, replace `*` with the IP or CIDR range of your trusted reverse proxy.
+
 Inspect stack status and logs:
 
 ```bash
@@ -61,7 +71,7 @@ Stop the stack:
 docker compose down
 ```
 
-Nginx forwards `Host`, `X-Real-IP`, `X-Forwarded-For`, `X-Forwarded-Proto`, and `X-Forwarded-Host` headers to the API. The API container runs Uvicorn with proxy headers enabled so `/docs` and request metadata work correctly through the reverse proxy.
+Nginx forwards `Host`, `X-Real-IP`, `X-Forwarded-For`, `X-Forwarded-Proto`, and `X-Forwarded-Host` headers to the API. The FastAPI application normalizes request metadata from those forwarded headers so `/docs`, generated URLs, and request logging work correctly through the reverse proxy.
 
 ## Developer workflow
 
