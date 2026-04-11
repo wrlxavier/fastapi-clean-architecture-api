@@ -3,8 +3,8 @@
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from application.errors import ProjectNotFoundError
 from application.ports import Clock, UnitOfWork
+from application.use_cases._resource_access import get_accessible_project
 from domain import ProjectId, Task, TaskId, TaskStatus, UserId
 
 
@@ -20,9 +20,9 @@ def _normalize_optional_text(value: str | None) -> str | None:
 class CreateTaskCommand:
     """Input data required to create a new task."""
 
+    actor_id: UserId
     project_id: ProjectId
     title: str
-    created_by: UserId
     description: str | None = None
     priority: str | None = None
     due_date: date | None = None
@@ -76,14 +76,17 @@ class CreateTaskUseCase:
         created_at = self._clock.now()
 
         with self._unit_of_work as unit_of_work:
-            if unit_of_work.projects.get_by_id(command.project_id) is None:
-                raise ProjectNotFoundError(command.project_id)
+            get_accessible_project(
+                unit_of_work,
+                project_id=command.project_id,
+                actor_id=command.actor_id,
+            )
 
             task = Task(
                 id=TaskId.new(),
                 project_id=command.project_id,
                 title=command.title,
-                created_by=command.created_by,
+                created_by=command.actor_id,
                 description=_normalize_optional_text(command.description),
                 priority=_normalize_optional_text(command.priority),
                 due_date=command.due_date,

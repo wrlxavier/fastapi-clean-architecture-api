@@ -11,12 +11,95 @@ from pydantic_settings import (
 )
 
 
-class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
+class ObservabilitySettings(BaseSettings):
+    """Settings used by runtime observability and logging concerns."""
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
+        env_ignore_empty=True,
+        extra="ignore",
+    )
+
+    app_env: str = Field(alias="APP_ENV", default="development")
+    log_level: str = Field(alias="LOG_LEVEL", default="INFO")
+    proxy_headers_enabled: bool = Field(alias="PROXY_HEADERS_ENABLED", default=True)
+    forwarded_allow_ips: str = Field(
+        alias="FORWARDED_ALLOW_IPS",
+        default="127.0.0.1,::1",
+    )
+
+    @property
+    def is_development(self) -> bool:
+        """Return whether the current runtime should emit dev diagnostics."""
+        return self.app_env.lower() in {"dev", "development", "local"}
+
+    @property
+    def trusted_proxy_hosts(self) -> tuple[str, ...]:
+        """Return the configured trusted proxy IPs or CIDR ranges."""
+        values = tuple(
+            entry.strip()
+            for entry in self.forwarded_allow_ips.split(",")
+            if entry.strip()
+        )
+        return values or ("127.0.0.1", "::1")
+
+
+def build_sqlalchemy_database_url(
+    *,
+    database_url: str | None,
+    database_host: str | None,
+    database_port: int | None,
+    database_user: str | None,
+    database_password: str | None,
+    database_name: str | None,
+) -> str:
+    """Build a SQLAlchemy database URL from full or discrete database settings."""
+    if database_url:
+        return database_url
+
+    missing_fields: list[str] = []
+
+    if not database_host:
+        missing_fields.append("DATABASE_HOST")
+    if database_port is None:
+        missing_fields.append("DATABASE_PORT")
+    if not database_user:
+        missing_fields.append("DATABASE_USER")
+    if database_password is None:
+        missing_fields.append("DATABASE_PASSWORD")
+    if not database_name:
+        missing_fields.append("DATABASE_NAME")
+
+    if missing_fields:
+        joined_missing_fields = ", ".join(missing_fields)
+        raise ValueError(
+            "Provide DATABASE_URL or all discrete database settings. "
+            f"Missing: {joined_missing_fields}."
+        )
+
+    assert database_host is not None
+    assert database_port is not None
+    assert database_user is not None
+    assert database_password is not None
+    assert database_name is not None
+
+    encoded_user = quote_plus(database_user)
+    encoded_password = quote_plus(database_password)
+    return (
+        "postgresql+psycopg://"
+        f"{encoded_user}:{encoded_password}@"
+        f"{database_host}:{database_port}/{database_name}"
+    )
+
+
+class DatabaseSettings(BaseSettings):
+    """Database-only settings for tooling that should not require app secrets."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_ignore_empty=True,
         extra="ignore",
     )
 
@@ -27,6 +110,35 @@ class Settings(BaseSettings):
     database_user: str | None = Field(alias="DATABASE_USER", default=None)
     database_password: str | None = Field(alias="DATABASE_PASSWORD", default=None)
     database_name: str | None = Field(alias="DATABASE_NAME", default=None)
+
+    @model_validator(mode="after")
+    def validate_database_configuration(self) -> Self:
+        """Require either a full database URL or all discrete database fields."""
+        build_sqlalchemy_database_url(
+            database_url=self.database_url,
+            database_host=self.database_host,
+            database_port=self.database_port,
+            database_user=self.database_user,
+            database_password=self.database_password,
+            database_name=self.database_name,
+        )
+        return self
+
+    @property
+    def sqlalchemy_database_url(self) -> str:
+        """Return the SQLAlchemy-compatible database URL."""
+        return build_sqlalchemy_database_url(
+            database_url=self.database_url,
+            database_host=self.database_host,
+            database_port=self.database_port,
+            database_user=self.database_user,
+            database_password=self.database_password,
+            database_name=self.database_name,
+        )
+
+
+class Settings(DatabaseSettings):
+    """Application settings loaded from environment variables."""
 
     # Authentication settings
     jwt_secret: str = Field(alias="JWT_SECRET", min_length=16)
@@ -40,56 +152,11 @@ class Settings(BaseSettings):
     log_level: str = Field(alias="LOG_LEVEL", default="INFO")
     pagination_limits: str = Field(alias="PAGINATION_LIMITS", default="1, 100")
 
-    @model_validator(mode="after")
-    def validate_database_configuration(self) -> Self:
-        """Require either a full database URL or all discrete database fields."""
-        if self.database_url:
-            return self
 
-        missing_fields: list[str] = []
-
-        if not self.database_host:
-            missing_fields.append("DATABASE_HOST")
-        if self.database_port is None:
-            missing_fields.append("DATABASE_PORT")
-        if not self.database_user:
-            missing_fields.append("DATABASE_USER")
-        if self.database_password is None:
-            missing_fields.append("DATABASE_PASSWORD")
-        if not self.database_name:
-            missing_fields.append("DATABASE_NAME")
-
-        if missing_fields:
-            joined_missing_fields = ", ".join(missing_fields)
-            raise ValueError(
-                "Provide DATABASE_URL or all discrete database settings. "
-                f"Missing: {joined_missing_fields}."
-            )
-
-        return self
-
-    @property
-    def sqlalchemy_database_url(self) -> str:
-        """Return the SQLAlchemy-compatible database URL."""
-        if self.database_url:
-            return self.database_url
-
-        if (
-            self.database_host is None
-            or self.database_port is None
-            or self.database_user is None
-            or self.database_password is None
-            or self.database_name is None
-        ):
-            raise ValueError("Database settings are not fully configured.")
-
-        encoded_user = quote_plus(self.database_user)
-        encoded_password = quote_plus(self.database_password)
-        return (
-            "postgresql+psycopg://"
-            f"{encoded_user}:{encoded_password}@"
-            f"{self.database_host}:{self.database_port}/{self.database_name}"
-        )
+@lru_cache
+def get_observability_settings() -> ObservabilitySettings:
+    """Get cached runtime settings used by logging and diagnostics."""
+    return ObservabilitySettings()
 
 
 @lru_cache
