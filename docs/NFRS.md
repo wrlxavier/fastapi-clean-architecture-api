@@ -22,6 +22,8 @@ Each NFR below is **measurable and verifiable**, with clear acceptance criteria 
 - Coverage: All CRUD operations on `tasks`, `projects`, `workspaces`, and commands (`/transition`, `/assign`).
 - **Acceptance:** 100% of identity-based endpoints have explicit authorization checks in the use case layer; test suite covers >90% of cross-user scenarios.
 
+**Implementation Note:** The current task slice uses an ownership-based concealment policy. When an authenticated actor references a `project_id` or `task_id` that belongs to another workspace owner, the API returns `404 Not Found` instead of `403 Forbidden` so resource existence is not leaked across tenants. The principal is currently supplied through the `X-User-ID` header, and the same application-layer checks can later be reused behind JWT authentication.
+
 ---
 
 ### 1.2 Unrestricted Resource Consumption Prevention

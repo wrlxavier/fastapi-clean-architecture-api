@@ -6,10 +6,10 @@ from typing import cast
 import pytest
 from fastapi.testclient import TestClient
 
-from domain import InvalidTaskTransitionError, TaskId
+from domain import InvalidTaskTransitionError, TaskId, UserId
 from infrastructure.config.settings import get_observability_settings
 from infrastructure.logging import CORRELATION_ID_HEADER
-from presentation.dependencies import get_transition_task_use_case
+from presentation.dependencies import USER_ID_HEADER, get_transition_task_use_case
 from presentation.main import create_app
 
 
@@ -125,6 +125,7 @@ def test_handled_errors_emit_specific_error_codes(
         client = TestClient(app)
         response = client.post(
             f"/v1/tasks/{task_id.value}/transition",
+            headers={USER_ID_HEADER: str(UserId.new().value)},
             json={"status": "doing"},
         )
     finally:

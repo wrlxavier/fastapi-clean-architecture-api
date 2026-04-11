@@ -4,7 +4,16 @@ import pytest
 
 from application.errors import ProjectNotFoundError
 from application.use_cases import CreateTaskCommand, CreateTaskUseCase
-from domain import Project, ProjectId, Task, TaskId, TaskStatus, UserId, WorkspaceId
+from domain import (
+    Project,
+    ProjectId,
+    Task,
+    TaskId,
+    TaskStatus,
+    UserId,
+    Workspace,
+    WorkspaceId,
+)
 
 
 class InMemoryTaskRepository:
@@ -57,6 +66,27 @@ class InMemoryProjectRepository:
         self._projects.pop(project.id, None)
 
 
+class InMemoryWorkspaceRepository:
+    def __init__(self) -> None:
+        self._workspaces: dict[WorkspaceId, Workspace] = {}
+
+    def add(self, workspace: Workspace) -> None:
+        self._workspaces[workspace.id] = workspace
+
+    def get_by_id(self, workspace_id: WorkspaceId) -> Workspace | None:
+        return self._workspaces.get(workspace_id)
+
+    def list_by_user(self, user_id: UserId) -> list[Workspace]:
+        return [
+            workspace
+            for workspace in self._workspaces.values()
+            if workspace.owner_id == user_id
+        ]
+
+    def remove(self, workspace: Workspace) -> None:
+        self._workspaces.pop(workspace.id, None)
+
+
 class FixedClock:
     def __init__(self, current_time: datetime) -> None:
         self._current_time = current_time
@@ -70,7 +100,7 @@ class FakeUnitOfWork:
         self.tasks = InMemoryTaskRepository()
         self.task_events = object()
         self.projects = InMemoryProjectRepository()
-        self.workspaces = object()
+        self.workspaces = InMemoryWorkspaceRepository()
         self.committed = False
         self.rolled_back = False
 
@@ -93,12 +123,18 @@ class FakeUnitOfWork:
 def test_create_task_use_case_persists_task_and_returns_result() -> None:
     created_at = datetime(2026, 4, 11, 13, 0, tzinfo=UTC)
     owner_id = UserId.new()
+    workspace = Workspace(
+        id=WorkspaceId.new(),
+        name="Platform Engineering",
+        owner_id=owner_id,
+    )
     project = Project(
         id=ProjectId.new(),
-        workspace_id=WorkspaceId.new(),
+        workspace_id=workspace.id,
         name="Task API",
     )
     unit_of_work = FakeUnitOfWork()
+    unit_of_work.workspaces.add(workspace)
     unit_of_work.projects.add(project)
     use_case = CreateTaskUseCase(
         unit_of_work=unit_of_work,
@@ -107,9 +143,9 @@ def test_create_task_use_case_persists_task_and_returns_result() -> None:
 
     result = use_case.execute(
         CreateTaskCommand(
+            actor_id=owner_id,
             project_id=project.id,
             title="  Ship create task vertical slice  ",
-            created_by=owner_id,
             description="  Add POST /v1/tasks  ",
             priority="  high  ",
             due_date=date(2026, 4, 30),
@@ -146,9 +182,9 @@ def test_create_task_use_case_rejects_unknown_project() -> None:
     with pytest.raises(ProjectNotFoundError) as caught_error:
         use_case.execute(
             CreateTaskCommand(
+                actor_id=UserId.new(),
                 project_id=missing_project_id,
                 title="Task without a project",
-                created_by=UserId.new(),
             )
         )
 
@@ -156,3 +192,39 @@ def test_create_task_use_case_rejects_unknown_project() -> None:
     assert unit_of_work.committed is False
     assert unit_of_work.rolled_back is True
     assert unit_of_work.tasks.list_by_project(missing_project_id) == []
+
+
+def test_create_task_use_case_conceals_inaccessible_project_as_not_found() -> None:
+    owner_id = UserId.new()
+    outsider_id = UserId.new()
+    workspace = Workspace(
+        id=WorkspaceId.new(),
+        name="Owner Workspace",
+        owner_id=owner_id,
+    )
+    project = Project(
+        id=ProjectId.new(),
+        workspace_id=workspace.id,
+        name="Hidden Project",
+    )
+    unit_of_work = FakeUnitOfWork()
+    unit_of_work.workspaces.add(workspace)
+    unit_of_work.projects.add(project)
+    use_case = CreateTaskUseCase(
+        unit_of_work=unit_of_work,
+        clock=FixedClock(datetime(2026, 4, 11, 13, 0, tzinfo=UTC)),
+    )
+
+    with pytest.raises(ProjectNotFoundError) as caught_error:
+        use_case.execute(
+            CreateTaskCommand(
+                actor_id=outsider_id,
+                project_id=project.id,
+                title="Attempt cross-user task creation",
+            )
+        )
+
+    assert caught_error.value.project_id == project.id
+    assert unit_of_work.committed is False
+    assert unit_of_work.rolled_back is True
+    assert unit_of_work.tasks.list_by_project(project.id) == []

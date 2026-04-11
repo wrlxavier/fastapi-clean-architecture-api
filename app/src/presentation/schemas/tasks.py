@@ -21,7 +21,6 @@ class CreateTaskRequestSchema(BaseModel):
 
     project_id: UUID
     title: str = Field(min_length=1, max_length=255)
-    created_by: UUID
     description: str | None = None
     priority: str | None = Field(default=None, max_length=32)
     due_date: date | None = None

@@ -27,6 +27,7 @@ from domain import InvalidTaskTransitionError, ProjectId, TaskId, UserId
 from presentation.dependencies import (
     get_assign_task_use_case,
     get_create_task_use_case,
+    get_current_user_id,
     get_list_tasks_use_case,
     get_transition_task_use_case,
 )
@@ -58,6 +59,11 @@ TransitionTaskUseCaseDependency = Annotated[
 AssignTaskUseCaseDependency = Annotated[
     AssignTaskUseCase,
     Depends(get_assign_task_use_case),
+]
+
+CurrentUserIdDependency = Annotated[
+    UserId,
+    Depends(get_current_user_id),
 ]
 
 
@@ -107,18 +113,27 @@ def _invalid_transition_response(
 @router.get("", response_model=TaskListResponseSchema)
 def list_tasks(
     use_case: ListTasksUseCaseDependency,
+    current_user_id: CurrentUserIdDependency,
     project_id: UUID,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> TaskListResponseSchema:
     """List tasks for a project using bounded pagination."""
-    result = use_case.execute(
-        ListTasksQuery(
-            project_id=ProjectId(project_id),
-            page=page,
-            page_size=page_size,
+    try:
+        result = use_case.execute(
+            ListTasksQuery(
+                actor_id=current_user_id,
+                project_id=ProjectId(project_id),
+                page=page,
+                page_size=page_size,
+            )
         )
-    )
+    except ProjectNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project '{error.project_id.value}' was not found.",
+        ) from error
+
     return _to_task_list_response(result)
 
 
@@ -127,12 +142,13 @@ def create_task(
     request: Request,
     payload: CreateTaskRequestSchema,
     use_case: CreateTaskUseCaseDependency,
+    current_user_id: CurrentUserIdDependency,
 ) -> TaskResponseSchema:
     """Create a new task inside an existing project."""
     command = CreateTaskCommand(
+        actor_id=current_user_id,
         project_id=ProjectId(payload.project_id),
         title=payload.title,
-        created_by=UserId(payload.created_by),
         description=payload.description,
         priority=payload.priority,
         due_date=payload.due_date,
@@ -159,9 +175,11 @@ def transition_task(
     task_id: UUID,
     payload: TransitionTaskRequestSchema,
     use_case: TransitionTaskUseCaseDependency,
+    current_user_id: CurrentUserIdDependency,
 ) -> TaskResponseSchema | JSONResponse:
     """Transition a task status and record an audit event."""
     command = TransitionTaskCommand(
+        actor_id=current_user_id,
         task_id=TaskId(task_id),
         target_status=payload.status,
     )
@@ -187,9 +205,11 @@ def assign_task(
     task_id: UUID,
     payload: AssignTaskRequestSchema,
     use_case: AssignTaskUseCaseDependency,
+    current_user_id: CurrentUserIdDependency,
 ) -> TaskResponseSchema:
     """Assign a task to a user and record an audit event."""
     command = AssignTaskCommand(
+        actor_id=current_user_id,
         task_id=TaskId(task_id),
         user_id=UserId(payload.user_id),
     )

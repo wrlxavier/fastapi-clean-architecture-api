@@ -3,8 +3,9 @@
 from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import Depends
+from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session, sessionmaker
 
 from application import (
@@ -13,11 +14,14 @@ from application import (
     ListTasksUseCase,
     TransitionTaskUseCase,
 )
+from domain import UserId
 from infrastructure import (
     SqlAlchemyUnitOfWork,
     create_session_factory,
     is_database_reachable,
 )
+
+USER_ID_HEADER = "X-User-ID"
 
 
 class SystemClock:
@@ -49,6 +53,30 @@ DatabaseReadinessDependency = Annotated[
     bool,
     Depends(get_database_readiness),
 ]
+
+
+def get_current_user_id(
+    x_user_id: Annotated[str | None, Header(alias=USER_ID_HEADER)] = None,
+) -> UserId:
+    """Resolve the authenticated principal for task routes.
+
+    The project will eventually source this identity from bearer tokens, but the
+    current task slice accepts a user UUID header so authorization can be enforced
+    consistently before the JWT workflow is implemented.
+    """
+    if x_user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Missing {USER_ID_HEADER} header.",
+        )
+
+    try:
+        return UserId(UUID(x_user_id))
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid {USER_ID_HEADER} header.",
+        ) from error
 
 
 def get_create_task_use_case(
