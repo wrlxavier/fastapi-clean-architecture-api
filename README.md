@@ -17,6 +17,51 @@ Clean Architecture layers:
 
 - Python >= 3.12
 - uv installed
+- Docker Engine with the Compose plugin (for the local production-like stack)
+
+## Docker Compose stack
+
+The repository includes a local production-like stack with:
+
+- `postgres`: PostgreSQL database with a container healthcheck.
+- `api`: FastAPI application container that applies Alembic migrations on startup and exposes `/health` and `/ready` internally.
+- `nginx`: reverse proxy that forwards traffic to the API and exposes the stack on `http://localhost:${NGINX_PORT:-8080}`.
+
+Start the full stack:
+
+```bash
+docker compose up -d --build
+```
+
+Or use the Makefile helper:
+
+```bash
+make compose-up
+```
+
+The API is available through Nginx by default at:
+
+- `http://localhost:8080/health`
+- `http://localhost:8080/ready`
+- `http://localhost:8080/docs`
+- `http://localhost:8080/openapi.json`
+
+You can override the published Nginx port with `NGINX_PORT` in `.env`.
+
+Inspect stack status and logs:
+
+```bash
+docker compose ps
+docker compose logs -f api
+```
+
+Stop the stack:
+
+```bash
+docker compose down
+```
+
+Nginx forwards `Host`, `X-Real-IP`, `X-Forwarded-For`, `X-Forwarded-Proto`, and `X-Forwarded-Host` headers to the API. The API container runs Uvicorn with proxy headers enabled so `/docs` and request metadata work correctly through the reverse proxy.
 
 ## Developer workflow
 

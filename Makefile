@@ -1,4 +1,4 @@
-.PHONY: help install lint format format-check typecheck test test-integration pre-commit check migrate migrate-down
+.PHONY: help install lint format format-check typecheck test test-integration pre-commit check migrate migrate-down compose-up compose-down compose-logs
 
 help:
 	@echo "Targets:"
@@ -11,6 +11,9 @@ help:
 	@echo "  make test-integration - Apply migrations and run PostgreSQL integration tests"
 	@echo "  make migrate      - Apply Alembic migrations to the configured database"
 	@echo "  make migrate-down - Roll back the latest Alembic migration"
+	@echo "  make compose-up   - Build and start the Docker Compose stack"
+	@echo "  make compose-down - Stop the Docker Compose stack"
+	@echo "  make compose-logs - Tail Docker Compose logs"
 	@echo "  make pre-commit   - Run pre-commit on all files (uv run pre-commit ...)"
 	@echo "  make check        - lint + format-check + typecheck + test"
 
@@ -40,6 +43,15 @@ migrate:
 
 migrate-down:
 	./.venv/bin/alembic downgrade -1
+
+compose-up:
+	docker compose up -d --build
+
+compose-down:
+	docker compose down
+
+compose-logs:
+	docker compose logs -f
 
 pre-commit:
 	uv run pre-commit run --all-files
