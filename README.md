@@ -48,6 +48,16 @@ make typecheck  # runs mypy --strict using pyproject.toml config
 make test
 ```
 
+### Integration tests against PostgreSQL
+
+Set `TEST_DATABASE_URL` to a dedicated test database, then run:
+
+```bash
+make test-integration
+```
+
+The integration test script applies `alembic upgrade head` to the test database before running `tests/integration`.
+
 ## pre-commit hooks
 
 Install hooks (run once after cloning):
@@ -72,6 +82,7 @@ Example:
 
 ```bash
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/fastapi_clean_architecture_api
+TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/fastapi_clean_architecture_api_test
 ```
 
 - Linux/MacOS:
@@ -92,6 +103,28 @@ This will run `uv sync` and create/use the project virtualenv at `.venv`.
 
 ```bash
 make install
+```
+
+## Database migrations
+
+Alembic migrations are versioned under `alembic/versions` and read database settings from environment variables or the local `.env` file.
+
+Apply the latest schema version:
+
+```bash
+make migrate
+```
+
+Roll back the latest migration:
+
+```bash
+make migrate-down
+```
+
+Create a new migration after changing SQLAlchemy models:
+
+```bash
+./.venv/bin/alembic revision --autogenerate -m "describe schema change"
 ```
 
 ## pre-commit hooks
