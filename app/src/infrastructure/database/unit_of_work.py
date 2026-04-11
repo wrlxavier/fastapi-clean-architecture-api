@@ -5,6 +5,7 @@ from typing import Self
 
 from sqlalchemy.orm import Session, sessionmaker
 
+from application.ports import ProjectRepository, TaskRepository, WorkspaceRepository
 from infrastructure.database.repositories import (
     SqlAlchemyProjectRepository,
     SqlAlchemyTaskRepository,
@@ -15,9 +16,9 @@ from infrastructure.database.repositories import (
 class SqlAlchemyUnitOfWork:
     """Coordinate repository adapters within a transactional session."""
 
-    tasks: SqlAlchemyTaskRepository
-    projects: SqlAlchemyProjectRepository
-    workspaces: SqlAlchemyWorkspaceRepository
+    tasks: TaskRepository
+    projects: ProjectRepository
+    workspaces: WorkspaceRepository
 
     def __init__(self, session_factory: sessionmaker[Session]) -> None:
         """Store the factory used to open transactional SQLAlchemy sessions."""
