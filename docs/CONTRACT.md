@@ -8,7 +8,9 @@ This FastAPI backend project demonstrates **production-ready API architecture** 
 
 ---
 
-## Scope (v1)
+## Scope (Target v1)
+
+This section defines the target product contract for the full v1 API surface. The current `v0.1.0` release intentionally implements a smaller, verified subset centered on task workflows and operational readiness; the shipped status is tracked in [Success Criteria & Acceptance](#success-criteria--acceptance).
 
 ### Core Entities & Data Model
 
@@ -37,7 +39,7 @@ The API manages the following entities within a Postgres database:
 3. **Audit Trail**:
    - Every significant action (create, update, status change, assignment) is logged in `TaskEvent` for compliance and debugging.
 
-### API Surface (v1)
+### Target API Surface (v1)
 
 All business endpoints are prefixed with `/v1/`.
 
@@ -265,20 +267,31 @@ The codebase is organized into **four distinct layers** (from innermost to outer
 
 ## Success Criteria & Acceptance
 
-This contract is fulfilled when all of the following are true:
+Verification date: `2026-04-11`
 
-1. ✅ **Repository Structure**: Code organized into `domain/`, `application/`, `infrastructure/`, `presentation/` directories with clear boundaries.
-2. ✅ **API Surface**: All endpoints listed above are implemented and work end-to-end.
-3. ✅ **Business Rules**: Status transitions, RBAC, and audit logging are enforced.
-4. ✅ **Database**: Postgres schema matches the entity model; Alembic migrations are versioned and reproducible.
-5. ✅ **Testing**: Unit tests for domain/application; integration tests with Postgres; target >= 80% coverage in core layers.
-6. ✅ **Code Quality**: Ruff lint/format, mypy typing checks, and pre-commit hooks all pass.
-7. ✅ **CI/CD**: GitHub Actions workflow runs lint, mypy, tests, and Docker image build on every PR.
-8. ✅ **Containerization**: `docker compose up` successfully starts API, Postgres, and Nginx; all services are healthy.
-9. ✅ **Observability**: `/health` and `/ready` endpoints work correctly; structured logging is in place.
-10. ✅ **Documentation**: README explains how to run locally, run tests, and deploy; architecture decisions are documented.
-11. ✅ **OpenAPI**: `/docs` and `/openapi.json` are accessible and accurate.
-12. ✅ **Release**: Semantic version tag (e.g., `v0.1.0`) and a release checklist is completed.
+Status legend:
+
+- **Implemented**: shipped and verified in the current repository.
+- **Partial**: shipped for the current task slice, but not for the full target contract.
+- **Deferred**: intentionally left for a later milestone or release.
+- **External/manual**: depends on GitHub or release operations outside the repository contents.
+
+| Criterion | Status | Verification notes |
+| --- | --- | --- |
+| Repository Structure | Implemented | `app/src` is split into `domain`, `application`, `infrastructure`, and `presentation`, and the dependency rule is documented in `docs/ARCHITECTURE.md`. |
+| API Surface | Partial | Verified public routes: `GET /health`, `GET /ready`, `GET /docs`, `GET /openapi.json`, `POST /v1/tasks`, `GET /v1/tasks`, `POST /v1/tasks/{task_id}/transition`, and `POST /v1/tasks/{task_id}/assign`. Deferred: JWT auth, users, workspaces, projects, task detail/update/delete, and `/metrics`. |
+| Business Rules | Partial | Task status transitions, audit events, and owner-scoped concealment checks are implemented for the task slice. Deferred: role-based workspace membership and the broader owner/collaborator/viewer RBAC model. |
+| Database | Partial | PostgreSQL schema and Alembic migrations are reproducible for `workspaces`, `projects`, `tasks`, and `task_events`. Deferred: `users` and `workspace_members` tables from the broader contract. |
+| Testing | Partial | Domain, application, presentation, smoke, and PostgreSQL integration tests exist. Local verification on `2026-04-11`: `39 passed`, `11 skipped` without `TEST_DATABASE_URL`. Deferred: automated coverage reporting and threshold enforcement. |
+| Code Quality | Implemented | Ruff, format check, mypy, and pre-commit are configured. Local verification on `2026-04-11`: lint, format, and typing checks passed. |
+| CI/CD | Implemented | `.github/workflows/ci.yml` runs quality, integration, and Docker build jobs on pull requests and pushes to `main`/`staging`. |
+| Containerization | Implemented | `docker compose config --quiet` succeeded, `docker compose up -d --build` started API, Postgres, and Nginx successfully, and the public endpoints responded through Nginx on `2026-04-11`. |
+| Observability | Implemented | `/health` and `/ready` are implemented and tested, and the app emits structured logs with correlation IDs and request metadata. |
+| Documentation | Implemented | `README.md`, `docs/ARCHITECTURE.md`, `docs/CONTRACT.md`, `docs/NFRS.md`, `docs/PERFORMANCE.md`, and `docs/RELEASE.md` document setup, architecture, quality expectations, performance, and release flow. |
+| OpenAPI | Implemented | `/docs` and `/openapi.json` are available, covered by smoke tests, and `/docs` was verified through Nginx on `2026-04-11`. |
+| Release | Partial | `pyproject.toml` declares version `0.1.0` and the release checklist/notes exist in `docs/RELEASE.md`. External/manual: the local workspace does not yet contain the `v0.1.0` git tag, and a published GitHub Release cannot be verified from the repository contents alone. |
+
+Result: `v0.1.0` satisfies the acceptance gate for the current task-management slice and operational baseline. The broader target contract remains intentionally incomplete until the deferred authentication, user, workspace, and project capabilities are shipped.
 
 ---
 
@@ -291,7 +304,7 @@ This contract is fulfilled when all of the following are true:
 - **Branching**: `main` (releases), `staging` (integration), `feature/*` (development); PRs required for all changes.
 - **Release Checklist**: Before tagging:
   - [ ] All CI checks pass.
-  - [ ] CHANGELOG.md is updated.
+  - [ ] Release notes in `docs/RELEASE.md` and/or the GitHub Release draft are current.
   - [ ] README and docs are current.
   - [ ] No open issues blocking the release.
   - [ ] Manual smoke test on Compose environment.

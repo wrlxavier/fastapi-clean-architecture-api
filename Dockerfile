@@ -15,6 +15,7 @@ COPY alembic.ini README.md ./
 COPY alembic ./alembic
 COPY app ./app
 COPY docker ./docker
+COPY scripts ./scripts
 
 RUN uv sync --frozen --no-dev
 
