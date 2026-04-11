@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 
 from application.ports import UnitOfWork
+from application.use_cases._resource_access import get_accessible_project
 from domain import ProjectId, Task, TaskId, TaskStatus, UserId
 
 
@@ -11,6 +12,7 @@ from domain import ProjectId, Task, TaskId, TaskStatus, UserId
 class ListTasksQuery:
     """Input data required to list tasks for a project."""
 
+    actor_id: UserId
     project_id: ProjectId
     page: int = 1
     page_size: int = 50
@@ -75,6 +77,11 @@ class ListTasksUseCase:
     def execute(self, query: ListTasksQuery) -> ListTasksResult:
         """Load a page of tasks and the total number of matching records."""
         with self._unit_of_work as unit_of_work:
+            get_accessible_project(
+                unit_of_work,
+                project_id=query.project_id,
+                actor_id=query.actor_id,
+            )
             total = unit_of_work.tasks.count_by_project(query.project_id)
             tasks = unit_of_work.tasks.list_by_project(
                 query.project_id,

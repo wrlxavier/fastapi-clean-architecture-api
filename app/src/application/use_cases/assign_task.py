@@ -3,8 +3,8 @@
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from application.errors import TaskNotFoundError
 from application.ports import Clock, UnitOfWork
+from application.use_cases._resource_access import get_accessible_task
 from domain import ProjectId, Task, TaskEvent, TaskId, TaskStatus, UserId
 
 
@@ -12,6 +12,7 @@ from domain import ProjectId, Task, TaskEvent, TaskId, TaskStatus, UserId
 class AssignTaskCommand:
     """Input data required to assign a task to a user."""
 
+    actor_id: UserId
     task_id: TaskId
     user_id: UserId
 
@@ -63,9 +64,11 @@ class AssignTaskUseCase:
         assigned_at = self._clock.now()
 
         with self._unit_of_work as unit_of_work:
-            task = unit_of_work.tasks.get_by_id(command.task_id)
-            if task is None:
-                raise TaskNotFoundError(command.task_id)
+            task = get_accessible_task(
+                unit_of_work,
+                task_id=command.task_id,
+                actor_id=command.actor_id,
+            )
 
             previous_assignee = task.assigned_to
             task.assign_to_user(command.user_id, occurred_at=assigned_at)

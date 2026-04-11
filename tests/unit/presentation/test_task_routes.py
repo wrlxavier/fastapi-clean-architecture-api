@@ -14,6 +14,7 @@ from application import (
 from domain import InvalidTaskTransitionError, ProjectId, TaskId, TaskStatus, UserId
 from presentation.dependencies import (
     get_assign_task_use_case,
+    get_current_user_id,
     get_list_tasks_use_case,
     get_transition_task_use_case,
 )
@@ -84,8 +85,10 @@ class StubAssignTaskUseCase:
 def test_list_tasks_route_returns_paginated_payload() -> None:
     stub_use_case = StubListTasksUseCase()
     project_id = ProjectId.new()
+    current_user_id = UserId.new()
     app = create_app()
     app.dependency_overrides[get_list_tasks_use_case] = lambda: stub_use_case
+    app.dependency_overrides[get_current_user_id] = lambda: current_user_id
 
     try:
         client = TestClient(app)
@@ -102,6 +105,7 @@ def test_list_tasks_route_returns_paginated_payload() -> None:
 
     assert response.status_code == 200
     assert stub_use_case.query is not None
+    assert stub_use_case.query.actor_id == current_user_id
     assert stub_use_case.query.project_id == project_id
     assert stub_use_case.query.page == 2
     assert stub_use_case.query.page_size == 10
@@ -111,6 +115,7 @@ def test_list_tasks_route_returns_paginated_payload() -> None:
 def test_list_tasks_route_rejects_page_size_above_limit() -> None:
     app = create_app()
     app.dependency_overrides[get_list_tasks_use_case] = lambda: StubListTasksUseCase()
+    app.dependency_overrides[get_current_user_id] = UserId.new
 
     try:
         client = TestClient(app)
@@ -130,6 +135,7 @@ def test_list_tasks_route_rejects_page_size_above_limit() -> None:
 def test_transition_task_route_returns_updated_task() -> None:
     task_id = TaskId.new()
     project_id = ProjectId.new()
+    current_user_id = UserId.new()
     updated_at = datetime(2026, 4, 11, 16, 30, tzinfo=UTC)
     stub_use_case = StubTransitionTaskUseCase(
         result=TransitionTaskResult(
@@ -148,6 +154,7 @@ def test_transition_task_route_returns_updated_task() -> None:
     )
     app = create_app()
     app.dependency_overrides[get_transition_task_use_case] = lambda: stub_use_case
+    app.dependency_overrides[get_current_user_id] = lambda: current_user_id
 
     try:
         client = TestClient(app)
@@ -160,6 +167,7 @@ def test_transition_task_route_returns_updated_task() -> None:
 
     assert response.status_code == 200
     assert stub_use_case.command is not None
+    assert stub_use_case.command.actor_id == current_user_id
     assert stub_use_case.command.task_id == task_id
     assert stub_use_case.command.target_status is TaskStatus.DOING
     assert response.json()["status"] == "doing"
@@ -175,6 +183,7 @@ def test_transition_task_route_returns_conflict_for_invalid_transition() -> None
     )
     app = create_app()
     app.dependency_overrides[get_transition_task_use_case] = lambda: stub_use_case
+    app.dependency_overrides[get_current_user_id] = UserId.new
 
     try:
         client = TestClient(app)
@@ -200,6 +209,7 @@ def test_assign_task_route_returns_updated_task() -> None:
     task_id = TaskId.new()
     project_id = ProjectId.new()
     assignee_id = UserId.new()
+    current_user_id = UserId.new()
     updated_at = datetime(2026, 4, 11, 17, 30, tzinfo=UTC)
     stub_use_case = StubAssignTaskUseCase(
         result=AssignTaskResult(
@@ -218,6 +228,7 @@ def test_assign_task_route_returns_updated_task() -> None:
     )
     app = create_app()
     app.dependency_overrides[get_assign_task_use_case] = lambda: stub_use_case
+    app.dependency_overrides[get_current_user_id] = lambda: current_user_id
 
     try:
         client = TestClient(app)
@@ -230,6 +241,7 @@ def test_assign_task_route_returns_updated_task() -> None:
 
     assert response.status_code == 200
     assert stub_use_case.command is not None
+    assert stub_use_case.command.actor_id == current_user_id
     assert stub_use_case.command.task_id == task_id
     assert stub_use_case.command.user_id == assignee_id
     assert response.json()["assigned_to"] == str(assignee_id.value)

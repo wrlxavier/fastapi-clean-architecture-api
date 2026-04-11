@@ -17,6 +17,7 @@ from infrastructure.database.session import (
     create_engine_from_database_url,
     create_engine_from_settings,
     create_session_factory,
+    is_database_reachable,
 )
 from infrastructure.database.unit_of_work import SqlAlchemyUnitOfWork
 
@@ -34,4 +35,5 @@ __all__ = [
     "create_engine_from_database_url",
     "create_engine_from_settings",
     "create_session_factory",
+    "is_database_reachable",
 ]

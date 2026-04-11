@@ -6,6 +6,7 @@ from application.errors import TaskNotFoundError
 from application.use_cases import TransitionTaskCommand, TransitionTaskUseCase
 from domain import (
     InvalidTaskTransitionError,
+    Project,
     ProjectId,
     Task,
     TaskEvent,
@@ -13,6 +14,8 @@ from domain import (
     TaskId,
     TaskStatus,
     UserId,
+    Workspace,
+    WorkspaceId,
 )
 
 
@@ -56,6 +59,48 @@ class InMemoryTaskEventRepository:
         return list(self._events.get(task_id, []))
 
 
+class InMemoryProjectRepository:
+    def __init__(self) -> None:
+        self._projects: dict[ProjectId, Project] = {}
+
+    def add(self, project: Project) -> None:
+        self._projects[project.id] = project
+
+    def get_by_id(self, project_id: ProjectId) -> Project | None:
+        return self._projects.get(project_id)
+
+    def list_by_workspace(self, workspace_id: WorkspaceId) -> list[Project]:
+        return [
+            project
+            for project in self._projects.values()
+            if project.workspace_id == workspace_id
+        ]
+
+    def remove(self, project: Project) -> None:
+        self._projects.pop(project.id, None)
+
+
+class InMemoryWorkspaceRepository:
+    def __init__(self) -> None:
+        self._workspaces: dict[WorkspaceId, Workspace] = {}
+
+    def add(self, workspace: Workspace) -> None:
+        self._workspaces[workspace.id] = workspace
+
+    def get_by_id(self, workspace_id: WorkspaceId) -> Workspace | None:
+        return self._workspaces.get(workspace_id)
+
+    def list_by_user(self, user_id: UserId) -> list[Workspace]:
+        return [
+            workspace
+            for workspace in self._workspaces.values()
+            if workspace.owner_id == user_id
+        ]
+
+    def remove(self, workspace: Workspace) -> None:
+        self._workspaces.pop(workspace.id, None)
+
+
 class FixedClock:
     def __init__(self, current_time: datetime) -> None:
         self._current_time = current_time
@@ -65,15 +110,36 @@ class FixedClock:
 
 
 class FakeUnitOfWork:
-    def __init__(self, task: Task | None = None) -> None:
+    def __init__(
+        self,
+        task: Task | None = None,
+        *,
+        workspace_owner_id: UserId | None = None,
+    ) -> None:
         self.tasks = InMemoryTaskRepository()
         self.task_events = InMemoryTaskEventRepository()
-        self.projects = object()
-        self.workspaces = object()
+        self.projects = InMemoryProjectRepository()
+        self.workspaces = InMemoryWorkspaceRepository()
         self.committed = False
         self.rolled_back = False
         if task is not None:
             self.tasks.add(task)
+            workspace = Workspace(
+                id=WorkspaceId.new(),
+                name="Task workspace",
+                owner_id=(
+                    task.created_by
+                    if workspace_owner_id is None
+                    else workspace_owner_id
+                ),
+            )
+            project = Project(
+                id=task.project_id,
+                workspace_id=workspace.id,
+                name="Task project",
+            )
+            self.workspaces.add(workspace)
+            self.projects.add(project)
 
     def __enter__(self) -> "FakeUnitOfWork":
         return self
@@ -91,19 +157,24 @@ class FakeUnitOfWork:
         self.rolled_back = True
 
 
-def build_task(*, status: TaskStatus = TaskStatus.TODO) -> Task:
+def build_task(
+    *,
+    status: TaskStatus = TaskStatus.TODO,
+    created_by: UserId | None = None,
+) -> Task:
     return Task(
         id=TaskId.new(),
         project_id=ProjectId.new(),
         title="Transition the workflow state",
-        created_by=UserId.new(),
+        created_by=UserId.new() if created_by is None else created_by,
         status=status,
     )
 
 
 def test_transition_task_use_case_updates_status_and_records_event() -> None:
     transitioned_at = datetime(2026, 4, 11, 16, 0, tzinfo=UTC)
-    task = build_task(status=TaskStatus.TODO)
+    owner_id = UserId.new()
+    task = build_task(status=TaskStatus.TODO, created_by=owner_id)
     unit_of_work = FakeUnitOfWork(task)
     use_case = TransitionTaskUseCase(
         unit_of_work=unit_of_work,
@@ -112,6 +183,7 @@ def test_transition_task_use_case_updates_status_and_records_event() -> None:
 
     result = use_case.execute(
         TransitionTaskCommand(
+            actor_id=owner_id,
             task_id=task.id,
             target_status=TaskStatus.DOING,
         )
@@ -135,7 +207,8 @@ def test_transition_task_use_case_updates_status_and_records_event() -> None:
 
 
 def test_transition_task_use_case_rejects_invalid_transition_without_event() -> None:
-    finished_task = build_task(status=TaskStatus.DONE)
+    owner_id = UserId.new()
+    finished_task = build_task(status=TaskStatus.DONE, created_by=owner_id)
     unit_of_work = FakeUnitOfWork(finished_task)
     use_case = TransitionTaskUseCase(
         unit_of_work=unit_of_work,
@@ -145,6 +218,7 @@ def test_transition_task_use_case_rejects_invalid_transition_without_event() -> 
     with pytest.raises(InvalidTaskTransitionError) as caught_error:
         use_case.execute(
             TransitionTaskCommand(
+                actor_id=owner_id,
                 task_id=finished_task.id,
                 target_status=TaskStatus.DOING,
             )
@@ -169,6 +243,7 @@ def test_transition_task_use_case_rejects_missing_task() -> None:
     with pytest.raises(TaskNotFoundError) as caught_error:
         use_case.execute(
             TransitionTaskCommand(
+                actor_id=UserId.new(),
                 task_id=missing_task_id,
                 target_status=TaskStatus.DOING,
             )
@@ -177,3 +252,28 @@ def test_transition_task_use_case_rejects_missing_task() -> None:
     assert caught_error.value.task_id == missing_task_id
     assert unit_of_work.committed is False
     assert unit_of_work.rolled_back is True
+
+
+def test_transition_task_use_case_conceals_inaccessible_task_as_not_found() -> None:
+    owner_id = UserId.new()
+    outsider_id = UserId.new()
+    task = build_task(status=TaskStatus.TODO, created_by=owner_id)
+    unit_of_work = FakeUnitOfWork(task, workspace_owner_id=owner_id)
+    use_case = TransitionTaskUseCase(
+        unit_of_work=unit_of_work,
+        clock=FixedClock(datetime(2026, 4, 11, 16, 0, tzinfo=UTC)),
+    )
+
+    with pytest.raises(TaskNotFoundError) as caught_error:
+        use_case.execute(
+            TransitionTaskCommand(
+                actor_id=outsider_id,
+                task_id=task.id,
+                target_status=TaskStatus.DOING,
+            )
+        )
+
+    assert caught_error.value.task_id == task.id
+    assert unit_of_work.committed is False
+    assert unit_of_work.rolled_back is True
+    assert unit_of_work.task_events.list_by_task(task.id) == []
