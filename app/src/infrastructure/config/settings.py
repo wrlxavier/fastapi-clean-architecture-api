@@ -11,6 +11,25 @@ from pydantic_settings import (
 )
 
 
+class ObservabilitySettings(BaseSettings):
+    """Settings used by runtime observability and logging concerns."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_ignore_empty=True,
+        extra="ignore",
+    )
+
+    app_env: str = Field(alias="APP_ENV", default="development")
+    log_level: str = Field(alias="LOG_LEVEL", default="INFO")
+
+    @property
+    def is_development(self) -> bool:
+        """Return whether the current runtime should emit dev diagnostics."""
+        return self.app_env.lower() in {"dev", "development", "local"}
+
+
 def build_sqlalchemy_database_url(
     *,
     database_url: str | None,
@@ -117,6 +136,13 @@ class Settings(DatabaseSettings):
     # Logging and pagination
     log_level: str = Field(alias="LOG_LEVEL", default="INFO")
     pagination_limits: str = Field(alias="PAGINATION_LIMITS", default="1, 100")
+
+
+@lru_cache
+def get_observability_settings() -> ObservabilitySettings:
+    """Get cached runtime settings used by logging and diagnostics."""
+    return ObservabilitySettings()
+
 
 @lru_cache
 def get_settings() -> Settings:

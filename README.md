@@ -78,9 +78,13 @@ Create a `.env` file in the project root based on the `.env.example` file and se
 
 For the database connection, you can either provide `DATABASE_URL` directly, or use the discrete `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_USER`, `DATABASE_PASSWORD`, and `DATABASE_NAME` variables.
 
+Set `APP_ENV=development` to include stack traces in server error logs during local work. Logs are emitted as JSON to stdout, which keeps containers and CI output easy to parse.
+
 Example:
 
 ```bash
+APP_ENV=development
+LOG_LEVEL=INFO
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/fastapi_clean_architecture_api
 TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/fastapi_clean_architecture_api_test
 ```

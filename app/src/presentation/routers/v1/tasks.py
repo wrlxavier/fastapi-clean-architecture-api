@@ -3,7 +3,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 
 from application import (
@@ -124,6 +124,7 @@ def list_tasks(
 
 @router.post("", response_model=TaskResponseSchema, status_code=status.HTTP_201_CREATED)
 def create_task(
+    request: Request,
     payload: CreateTaskRequestSchema,
     use_case: CreateTaskUseCaseDependency,
 ) -> TaskResponseSchema:
@@ -143,6 +144,7 @@ def create_task(
     try:
         result = use_case.execute(command)
     except ProjectNotFoundError as error:
+        request.state.error_code = "PROJECT_NOT_FOUND"
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project '{error.project_id.value}' was not found.",
@@ -153,6 +155,7 @@ def create_task(
 
 @router.post("/{task_id}/transition", response_model=TaskResponseSchema)
 def transition_task(
+    request: Request,
     task_id: UUID,
     payload: TransitionTaskRequestSchema,
     use_case: TransitionTaskUseCaseDependency,
@@ -166,11 +169,13 @@ def transition_task(
     try:
         result = use_case.execute(command)
     except TaskNotFoundError as error:
+        request.state.error_code = "TASK_NOT_FOUND"
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Task '{error.task_id.value}' was not found.",
         ) from error
     except InvalidTaskTransitionError as error:
+        request.state.error_code = "INVALID_TRANSITION"
         return _invalid_transition_response(error)
 
     return _to_task_response(result)
@@ -178,6 +183,7 @@ def transition_task(
 
 @router.post("/{task_id}/assign", response_model=TaskResponseSchema)
 def assign_task(
+    request: Request,
     task_id: UUID,
     payload: AssignTaskRequestSchema,
     use_case: AssignTaskUseCaseDependency,
@@ -191,6 +197,7 @@ def assign_task(
     try:
         result = use_case.execute(command)
     except TaskNotFoundError as error:
+        request.state.error_code = "TASK_NOT_FOUND"
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Task '{error.task_id.value}' was not found.",
