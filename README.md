@@ -26,6 +26,7 @@ Scope note:
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - [docs/CONTRACT.md](docs/CONTRACT.md)
 - [docs/NFRS.md](docs/NFRS.md)
+- [docs/PERFORMANCE.md](docs/PERFORMANCE.md)
 
 ## Clean Architecture Overview
 
@@ -146,6 +147,23 @@ Integration tests require PostgreSQL and a dedicated `TEST_DATABASE_URL`. The in
 ```bash
 make test-integration
 ```
+
+### Load testing
+
+Seed the deterministic workspace/project fixture and run the k6 workload:
+
+```bash
+make load-test-seed
+make load-test
+```
+
+Override the workload shape when needed:
+
+```bash
+BASE_URL=http://127.0.0.1:8080 LOAD_TEST_VUS=20 LOAD_TEST_DURATION=1m make load-test
+```
+
+The full workflow, fixture IDs, thresholds, and baseline latency report live in [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ### Migrations
 

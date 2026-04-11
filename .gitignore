@@ -208,3 +208,6 @@ __marimo__/
 
 # Temp doc files for developer's reference, not intended for public consumption.
 _docs/
+
+# Generated load-test summaries.
+artifacts/
