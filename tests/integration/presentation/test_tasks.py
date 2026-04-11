@@ -1,9 +1,10 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
-from domain import Project, TaskId, UserId, Workspace, WorkspaceId
+from domain import Project, Task, TaskId, UserId, Workspace, WorkspaceId
 from domain.identifiers import ProjectId
 from infrastructure import SqlAlchemyUnitOfWork
 from presentation.dependencies import get_session_factory
@@ -74,3 +75,112 @@ def test_create_task_endpoint_persists_task_in_postgres(
     assert saved_task.priority == "high"
     assert saved_task.created_by == owner_id
     assert saved_task.assigned_to == owner_id
+
+
+def test_list_tasks_endpoint_returns_paginated_tasks(
+    session_factory: sessionmaker[Session],
+) -> None:
+    owner_id = UserId.new()
+    workspace = Workspace(
+        id=WorkspaceId.new(),
+        name="Platform Engineering",
+        owner_id=owner_id,
+    )
+    project = Project(
+        id=ProjectId.new(),
+        workspace_id=workspace.id,
+        name="Task API",
+    )
+    other_project = Project(
+        id=ProjectId.new(),
+        workspace_id=workspace.id,
+        name="Ignored Project",
+    )
+    created_at = datetime(2026, 4, 11, 14, 0, tzinfo=UTC)
+    tasks = [
+        Task(
+            id=TaskId.new(),
+            project_id=project.id,
+            title="Define pagination contract",
+            created_by=owner_id,
+            created_at=created_at,
+            updated_at=created_at,
+        ),
+        Task(
+            id=TaskId.new(),
+            project_id=project.id,
+            title="Implement repository paging",
+            created_by=owner_id,
+            created_at=created_at.replace(minute=1),
+            updated_at=created_at.replace(minute=1),
+        ),
+        Task(
+            id=TaskId.new(),
+            project_id=project.id,
+            title="Expose GET /v1/tasks",
+            created_by=owner_id,
+            created_at=created_at.replace(minute=2),
+            updated_at=created_at.replace(minute=2),
+        ),
+        Task(
+            id=TaskId.new(),
+            project_id=other_project.id,
+            title="Ignore other project tasks",
+            created_by=owner_id,
+            created_at=created_at.replace(minute=3),
+            updated_at=created_at.replace(minute=3),
+        ),
+    ]
+
+    with SqlAlchemyUnitOfWork(session_factory) as unit_of_work:
+        unit_of_work.workspaces.add(workspace)
+        unit_of_work.projects.add(project)
+        unit_of_work.projects.add(other_project)
+        for task in tasks:
+            unit_of_work.tasks.add(task)
+        unit_of_work.commit()
+
+    app = create_app()
+    app.dependency_overrides[get_session_factory] = lambda: session_factory
+
+    try:
+        client = TestClient(app)
+        response = client.get(
+            "/v1/tasks",
+            params={
+                "project_id": str(project.id.value),
+                "page": 2,
+                "page_size": 2,
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["total"] == 3
+    assert payload["page"] == 2
+    assert payload["page_size"] == 2
+    assert [item["title"] for item in payload["items"]] == ["Expose GET /v1/tasks"]
+
+
+def test_list_tasks_endpoint_rejects_page_size_above_limit(
+    session_factory: sessionmaker[Session],
+) -> None:
+    app = create_app()
+    app.dependency_overrides[get_session_factory] = lambda: session_factory
+
+    try:
+        client = TestClient(app)
+        response = client.get(
+            "/v1/tasks",
+            params={
+                "project_id": str(ProjectId.new().value),
+                "page_size": 101,
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 422

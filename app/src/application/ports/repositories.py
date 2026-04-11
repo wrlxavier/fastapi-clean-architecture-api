@@ -24,8 +24,17 @@ class TaskRepository(Protocol):
     def get_by_id(self, task_id: TaskId) -> Task | None:
         """Load a task by its identifier."""
 
-    def list_by_project(self, project_id: ProjectId) -> Sequence[Task]:
+    def list_by_project(
+        self,
+        project_id: ProjectId,
+        *,
+        offset: int = 0,
+        limit: int | None = None,
+    ) -> Sequence[Task]:
         """List tasks that belong to a project."""
+
+    def count_by_project(self, project_id: ProjectId) -> int:
+        """Count tasks that belong to a project."""
 
     def remove(self, task: Task) -> None:
         """Delete a task from persistence."""

@@ -1,18 +1,27 @@
 """Task routes for API v1."""
 
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from application import (
     CreateTaskCommand,
     CreateTaskResult,
     CreateTaskUseCase,
+    ListTasksItem,
+    ListTasksQuery,
+    ListTasksResult,
+    ListTasksUseCase,
     ProjectNotFoundError,
 )
 from domain import ProjectId, UserId
-from presentation.dependencies import get_create_task_use_case
-from presentation.schemas.tasks import CreateTaskRequestSchema, TaskResponseSchema
+from presentation.dependencies import get_create_task_use_case, get_list_tasks_use_case
+from presentation.schemas.tasks import (
+    CreateTaskRequestSchema,
+    TaskListResponseSchema,
+    TaskResponseSchema,
+)
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -21,23 +30,55 @@ CreateTaskUseCaseDependency = Annotated[
     Depends(get_create_task_use_case),
 ]
 
+ListTasksUseCaseDependency = Annotated[
+    ListTasksUseCase,
+    Depends(get_list_tasks_use_case),
+]
 
-def _to_task_response(result: CreateTaskResult) -> TaskResponseSchema:
+
+def _to_task_response(task: CreateTaskResult | ListTasksItem) -> TaskResponseSchema:
     return TaskResponseSchema(
-        id=result.id.value,
-        project_id=result.project_id.value,
-        title=result.title,
-        created_by=result.created_by.value,
-        description=result.description,
-        status=result.status,
-        priority=result.priority,
-        due_date=result.due_date,
+        id=task.id.value,
+        project_id=task.project_id.value,
+        title=task.title,
+        created_by=task.created_by.value,
+        description=task.description,
+        status=task.status,
+        priority=task.priority,
+        due_date=task.due_date,
         assigned_to=(
-            None if result.assigned_to is None else result.assigned_to.value
+            None if task.assigned_to is None else task.assigned_to.value
         ),
-        created_at=result.created_at,
-        updated_at=result.updated_at,
+        created_at=task.created_at,
+        updated_at=task.updated_at,
     )
+
+
+def _to_task_list_response(result: ListTasksResult) -> TaskListResponseSchema:
+    return TaskListResponseSchema(
+        items=[_to_task_response(item) for item in result.items],
+        total=result.total,
+        page=result.page,
+        page_size=result.page_size,
+    )
+
+
+@router.get("", response_model=TaskListResponseSchema)
+def list_tasks(
+    use_case: ListTasksUseCaseDependency,
+    project_id: UUID,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> TaskListResponseSchema:
+    """List tasks for a project using bounded pagination."""
+    result = use_case.execute(
+        ListTasksQuery(
+            project_id=ProjectId(project_id),
+            page=page,
+            page_size=page_size,
+        )
+    )
+    return _to_task_list_response(result)
 
 
 @router.post("", response_model=TaskResponseSchema, status_code=status.HTTP_201_CREATED)

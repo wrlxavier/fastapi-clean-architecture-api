@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.orm import Session, sessionmaker
 
-from application import CreateTaskUseCase
+from application import CreateTaskUseCase, ListTasksUseCase
 from infrastructure import SqlAlchemyUnitOfWork, create_session_factory
 
 
@@ -39,3 +39,10 @@ def get_create_task_use_case(
         unit_of_work=SqlAlchemyUnitOfWork(session_factory),
         clock=SystemClock(),
     )
+
+
+def get_list_tasks_use_case(
+    session_factory: SessionFactoryDependency,
+) -> ListTasksUseCase:
+    """Provide the list tasks use case with runtime infrastructure wiring."""
+    return ListTasksUseCase(unit_of_work=SqlAlchemyUnitOfWork(session_factory))

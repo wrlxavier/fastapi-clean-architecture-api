@@ -56,8 +56,20 @@ class InMemoryTaskRepository:
     def get_by_id(self, task_id: TaskId) -> Task | None:
         return self._tasks.get(task_id)
 
-    def list_by_project(self, project_id: ProjectId) -> list[Task]:
-        return [task for task in self._tasks.values() if task.project_id == project_id]
+    def list_by_project(
+        self,
+        project_id: ProjectId,
+        *,
+        offset: int = 0,
+        limit: int | None = None,
+    ) -> list[Task]:
+        tasks = [task for task in self._tasks.values() if task.project_id == project_id]
+        if limit is None:
+            return tasks[offset:]
+        return tasks[offset : offset + limit]
+
+    def count_by_project(self, project_id: ProjectId) -> int:
+        return sum(1 for task in self._tasks.values() if task.project_id == project_id)
 
     def remove(self, task: Task) -> None:
         self._tasks.pop(task.id, None)

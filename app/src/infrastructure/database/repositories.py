@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from application import ProjectRepository, TaskRepository, WorkspaceRepository
@@ -109,15 +109,35 @@ class SqlAlchemyTaskRepository(TaskRepository):
             return None
         return _to_task_domain(model)
 
-    def list_by_project(self, project_id: ProjectId) -> Sequence[Task]:
+    def list_by_project(
+        self,
+        project_id: ProjectId,
+        *,
+        offset: int = 0,
+        limit: int | None = None,
+    ) -> Sequence[Task]:
         """List task aggregates that belong to a project."""
         statement = (
             select(TaskModel)
             .where(TaskModel.project_id == project_id.value)
             .order_by(TaskModel.created_at, TaskModel.id)
         )
+
+        if offset > 0:
+            statement = statement.offset(offset)
+
+        if limit is not None:
+            statement = statement.limit(limit)
+
         models = self._session.scalars(statement).all()
         return [_to_task_domain(model) for model in models]
+
+    def count_by_project(self, project_id: ProjectId) -> int:
+        """Count task aggregates that belong to a project."""
+        statement = select(func.count()).select_from(TaskModel).where(
+            TaskModel.project_id == project_id.value
+        )
+        return self._session.execute(statement).scalar_one()
 
     def remove(self, task: Task) -> None:
         """Delete a task aggregate by identifier."""

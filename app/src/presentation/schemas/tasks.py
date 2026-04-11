@@ -57,3 +57,12 @@ class TaskResponseSchema(BaseModel):
     assigned_to: UUID | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class TaskListResponseSchema(BaseModel):
+    """Paginated response payload for task collections."""
+
+    items: list[TaskResponseSchema]
+    total: int = Field(ge=0)
+    page: int = Field(ge=1)
+    page_size: int = Field(ge=1, le=100)
