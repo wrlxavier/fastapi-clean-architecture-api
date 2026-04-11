@@ -27,6 +27,7 @@ Scope note:
 - [docs/CONTRACT.md](docs/CONTRACT.md)
 - [docs/NFRS.md](docs/NFRS.md)
 - [docs/PERFORMANCE.md](docs/PERFORMANCE.md)
+- [docs/RELEASE.md](docs/RELEASE.md)
 
 ## Clean Architecture Overview
 
