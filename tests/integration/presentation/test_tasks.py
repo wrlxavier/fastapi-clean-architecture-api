@@ -4,7 +4,16 @@ from uuid import UUID
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
-from domain import Project, Task, TaskId, UserId, Workspace, WorkspaceId
+from domain import (
+    Project,
+    Task,
+    TaskEventType,
+    TaskId,
+    TaskStatus,
+    UserId,
+    Workspace,
+    WorkspaceId,
+)
 from domain.identifiers import ProjectId
 from infrastructure import SqlAlchemyUnitOfWork
 from presentation.dependencies import get_session_factory
@@ -184,3 +193,118 @@ def test_list_tasks_endpoint_rejects_page_size_above_limit(
         app.dependency_overrides.clear()
 
     assert response.status_code == 422
+
+
+def test_transition_task_endpoint_updates_status_and_records_event(
+    session_factory: sessionmaker[Session],
+) -> None:
+    owner_id = UserId.new()
+    workspace = Workspace(
+        id=WorkspaceId.new(),
+        name="Platform Engineering",
+        owner_id=owner_id,
+    )
+    project = Project(
+        id=ProjectId.new(),
+        workspace_id=workspace.id,
+        name="Task API",
+    )
+    task = Task(
+        id=TaskId.new(),
+        project_id=project.id,
+        title="Implement transition endpoint",
+        created_by=owner_id,
+    )
+
+    with SqlAlchemyUnitOfWork(session_factory) as unit_of_work:
+        unit_of_work.workspaces.add(workspace)
+        unit_of_work.projects.add(project)
+        unit_of_work.tasks.add(task)
+        unit_of_work.commit()
+
+    app = create_app()
+    app.dependency_overrides[get_session_factory] = lambda: session_factory
+
+    try:
+        client = TestClient(app)
+        response = client.post(
+            f"/v1/tasks/{task.id.value}/transition",
+            json={"status": "doing"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "doing"
+
+    with SqlAlchemyUnitOfWork(session_factory) as unit_of_work:
+        saved_task = unit_of_work.tasks.get_by_id(task.id)
+        task_events = unit_of_work.task_events.list_by_task(task.id)
+
+    assert saved_task is not None
+    assert saved_task.status is TaskStatus.DOING
+    assert len(task_events) == 1
+    assert task_events[0].event_type is TaskEventType.STATUS_TRANSITIONED
+    assert task_events[0].payload == {
+        "from_status": "todo",
+        "to_status": "doing",
+    }
+
+
+def test_transition_task_endpoint_returns_conflict_for_invalid_transition(
+    session_factory: sessionmaker[Session],
+) -> None:
+    owner_id = UserId.new()
+    workspace = Workspace(
+        id=WorkspaceId.new(),
+        name="Platform Engineering",
+        owner_id=owner_id,
+    )
+    project = Project(
+        id=ProjectId.new(),
+        workspace_id=workspace.id,
+        name="Task API",
+    )
+    task = Task(
+        id=TaskId.new(),
+        project_id=project.id,
+        title="Already finished task",
+        created_by=owner_id,
+        status=TaskStatus.DONE,
+    )
+
+    with SqlAlchemyUnitOfWork(session_factory) as unit_of_work:
+        unit_of_work.workspaces.add(workspace)
+        unit_of_work.projects.add(project)
+        unit_of_work.tasks.add(task)
+        unit_of_work.commit()
+
+    app = create_app()
+    app.dependency_overrides[get_session_factory] = lambda: session_factory
+
+    try:
+        client = TestClient(app)
+        response = client.post(
+            f"/v1/tasks/{task.id.value}/transition",
+            json={"status": "doing"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "code": "INVALID_TRANSITION",
+        "message": "Cannot transition task from 'done' to 'doing'.",
+        "details": {
+            "current_status": "done",
+            "target_status": "doing",
+        },
+    }
+
+    with SqlAlchemyUnitOfWork(session_factory) as unit_of_work:
+        saved_task = unit_of_work.tasks.get_by_id(task.id)
+        task_events = unit_of_work.task_events.list_by_task(task.id)
+
+    assert saved_task is not None
+    assert saved_task.status is TaskStatus.DONE
+    assert task_events == []

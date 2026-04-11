@@ -34,6 +34,7 @@ class InMemoryTaskRepository:
 class FakeUnitOfWork:
     def __init__(self, tasks: InMemoryTaskRepository) -> None:
         self.tasks = tasks
+        self.task_events = object()
         self.projects = object()
         self.workspaces = object()
 

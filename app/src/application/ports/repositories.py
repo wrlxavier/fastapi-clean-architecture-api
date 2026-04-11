@@ -7,6 +7,7 @@ from domain import (
     Project,
     ProjectId,
     Task,
+    TaskEvent,
     TaskId,
     UserId,
     Workspace,
@@ -38,6 +39,17 @@ class TaskRepository(Protocol):
 
     def remove(self, task: Task) -> None:
         """Delete a task from persistence."""
+
+
+@runtime_checkable
+class TaskEventRepository(Protocol):
+    """Persistence contract for immutable task audit events."""
+
+    def add(self, task_event: TaskEvent) -> None:
+        """Persist a new task event."""
+
+    def list_by_task(self, task_id: TaskId) -> Sequence[TaskEvent]:
+        """List audit events that belong to a task."""
 
 
 @runtime_checkable

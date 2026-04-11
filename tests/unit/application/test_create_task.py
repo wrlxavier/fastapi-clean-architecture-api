@@ -68,6 +68,7 @@ class FixedClock:
 class FakeUnitOfWork:
     def __init__(self) -> None:
         self.tasks = InMemoryTaskRepository()
+        self.task_events = object()
         self.projects = InMemoryProjectRepository()
         self.workspaces = object()
         self.committed = False

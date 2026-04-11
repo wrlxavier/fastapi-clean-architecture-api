@@ -5,6 +5,7 @@ from typing import Protocol, Self, runtime_checkable
 
 from application.ports.repositories import (
     ProjectRepository,
+    TaskEventRepository,
     TaskRepository,
     WorkspaceRepository,
 )
@@ -15,6 +16,7 @@ class UnitOfWork(Protocol):
     """Coordinates repositories and persistence boundaries for a use case."""
 
     tasks: TaskRepository
+    task_events: TaskEventRepository
     projects: ProjectRepository
     workspaces: WorkspaceRepository
 

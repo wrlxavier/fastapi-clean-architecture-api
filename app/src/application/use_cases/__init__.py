@@ -11,6 +11,11 @@ from application.use_cases.list_tasks import (
     ListTasksResult,
     ListTasksUseCase,
 )
+from application.use_cases.transition_task import (
+    TransitionTaskCommand,
+    TransitionTaskResult,
+    TransitionTaskUseCase,
+)
 
 __all__ = [
     "CreateTaskCommand",
@@ -20,4 +25,7 @@ __all__ = [
     "ListTasksQuery",
     "ListTasksResult",
     "ListTasksUseCase",
+    "TransitionTaskCommand",
+    "TransitionTaskResult",
+    "TransitionTaskUseCase",
 ]

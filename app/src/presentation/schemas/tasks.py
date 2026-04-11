@@ -43,6 +43,12 @@ class CreateTaskRequestSchema(BaseModel):
         return _normalize_optional_text(value)
 
 
+class TransitionTaskRequestSchema(BaseModel):
+    """Request payload for transitioning a task status."""
+
+    status: TaskStatus
+
+
 class TaskResponseSchema(BaseModel):
     """Response payload for task resources."""
 

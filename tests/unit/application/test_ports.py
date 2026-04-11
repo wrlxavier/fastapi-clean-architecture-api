@@ -5,6 +5,7 @@ from application import (
     JWTProvider,
     PasswordHasher,
     ProjectRepository,
+    TaskEventRepository,
     TaskRepository,
     TokenPair,
     UnitOfWork,
@@ -13,6 +14,9 @@ from application import (
 from domain import (
     Project,
     ProjectId,
+    TaskEvent,
+    TaskEventId,
+    TaskEventType,
     Task,
     TaskId,
     UserId,
@@ -96,6 +100,17 @@ class InMemoryProjectRepository:
         self._projects.pop(project.id, None)
 
 
+class InMemoryTaskEventRepository:
+    def __init__(self) -> None:
+        self._events: dict[TaskId, list[TaskEvent]] = {}
+
+    def add(self, task_event: TaskEvent) -> None:
+        self._events.setdefault(task_event.task_id, []).append(task_event)
+
+    def list_by_task(self, task_id: TaskId) -> list[TaskEvent]:
+        return list(self._events.get(task_id, []))
+
+
 class InMemoryWorkspaceRepository:
     def __init__(self) -> None:
         self._workspaces: dict[WorkspaceId, Workspace] = {}
@@ -155,10 +170,12 @@ class FakeUnitOfWork:
         self,
         *,
         tasks: TaskRepository,
+        task_events: TaskEventRepository,
         projects: ProjectRepository,
         workspaces: WorkspaceRepository,
     ) -> None:
         self.tasks = tasks
+        self.task_events = task_events
         self.projects = projects
         self.workspaces = workspaces
         self.committed = False
@@ -186,6 +203,7 @@ def test_application_ports_define_use_case_boundaries() -> None:
     task = build_task(project_id=project.id, created_by=owner_id)
 
     task_repository = InMemoryTaskRepository()
+    task_event_repository = InMemoryTaskEventRepository()
     project_repository = InMemoryProjectRepository()
     workspace_repository = InMemoryWorkspaceRepository()
     fixed_clock = FixedClock(datetime(2026, 4, 9, 12, 0, tzinfo=UTC))
@@ -193,11 +211,13 @@ def test_application_ports_define_use_case_boundaries() -> None:
     jwt_provider = StubJWTProvider(owner_id)
     unit_of_work = FakeUnitOfWork(
         tasks=task_repository,
+        task_events=task_event_repository,
         projects=project_repository,
         workspaces=workspace_repository,
     )
 
     assert isinstance(task_repository, TaskRepository)
+    assert isinstance(task_event_repository, TaskEventRepository)
     assert isinstance(project_repository, ProjectRepository)
     assert isinstance(workspace_repository, WorkspaceRepository)
     assert isinstance(fixed_clock, Clock)
@@ -209,6 +229,13 @@ def test_application_ports_define_use_case_boundaries() -> None:
         active_unit_of_work.workspaces.add(workspace)
         active_unit_of_work.projects.add(project)
         active_unit_of_work.tasks.add(task)
+        active_unit_of_work.task_events.add(
+            TaskEvent(
+                id=TaskEventId.new(),
+                task_id=task.id,
+                event_type=TaskEventType.STATUS_TRANSITIONED,
+            )
+        )
         active_unit_of_work.commit()
 
     issued_tokens = jwt_provider.issue_tokens(subject=owner_id)
@@ -222,5 +249,6 @@ def test_application_ports_define_use_case_boundaries() -> None:
     )
     assert jwt_provider.decode_subject(issued_tokens.access_token) == owner_id
     assert task_repository.get_by_id(task.id) == task
+    assert len(task_event_repository.list_by_task(task.id)) == 1
     assert project_repository.list_by_workspace(workspace.id) == [project]
     assert workspace_repository.list_by_user(owner_id) == [workspace]

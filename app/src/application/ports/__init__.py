@@ -2,6 +2,7 @@
 
 from application.ports.repositories import (
     ProjectRepository,
+    TaskEventRepository,
     TaskRepository,
     WorkspaceRepository,
 )
@@ -14,6 +15,7 @@ __all__ = [
     "JWTProvider",
     "PasswordHasher",
     "ProjectRepository",
+    "TaskEventRepository",
     "TaskRepository",
     "TokenPair",
     "UnitOfWork",

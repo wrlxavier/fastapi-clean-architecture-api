@@ -5,9 +5,15 @@ from typing import Self
 
 from sqlalchemy.orm import Session, sessionmaker
 
-from application.ports import ProjectRepository, TaskRepository, WorkspaceRepository
+from application.ports import (
+    ProjectRepository,
+    TaskEventRepository,
+    TaskRepository,
+    WorkspaceRepository,
+)
 from infrastructure.database.repositories import (
     SqlAlchemyProjectRepository,
+    SqlAlchemyTaskEventRepository,
     SqlAlchemyTaskRepository,
     SqlAlchemyWorkspaceRepository,
 )
@@ -17,6 +23,7 @@ class SqlAlchemyUnitOfWork:
     """Coordinate repository adapters within a transactional session."""
 
     tasks: TaskRepository
+    task_events: TaskEventRepository
     projects: ProjectRepository
     workspaces: WorkspaceRepository
 
@@ -32,6 +39,7 @@ class SqlAlchemyUnitOfWork:
 
         self._session = self._session_factory()
         self.tasks = SqlAlchemyTaskRepository(self._session)
+        self.task_events = SqlAlchemyTaskEventRepository(self._session)
         self.projects = SqlAlchemyProjectRepository(self._session)
         self.workspaces = SqlAlchemyWorkspaceRepository(self._session)
         return self

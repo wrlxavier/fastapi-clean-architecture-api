@@ -1,11 +1,12 @@
 """Application layer exports."""
 
-from application.errors import ApplicationError, ProjectNotFoundError
+from application.errors import ApplicationError, ProjectNotFoundError, TaskNotFoundError
 from application.ports import (
     Clock,
     JWTProvider,
     PasswordHasher,
     ProjectRepository,
+    TaskEventRepository,
     TaskRepository,
     TokenPair,
     UnitOfWork,
@@ -19,6 +20,9 @@ from application.use_cases import (
     ListTasksQuery,
     ListTasksResult,
     ListTasksUseCase,
+    TransitionTaskCommand,
+    TransitionTaskResult,
+    TransitionTaskUseCase,
 )
 
 __all__ = [
@@ -35,8 +39,13 @@ __all__ = [
     "PasswordHasher",
     "ProjectNotFoundError",
     "ProjectRepository",
+    "TaskEventRepository",
     "TaskRepository",
+    "TaskNotFoundError",
     "TokenPair",
+    "TransitionTaskCommand",
+    "TransitionTaskResult",
+    "TransitionTaskUseCase",
     "UnitOfWork",
     "WorkspaceRepository",
 ]
