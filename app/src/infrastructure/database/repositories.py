@@ -2,21 +2,34 @@
 
 from collections.abc import Sequence
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from application import ProjectRepository, TaskRepository, WorkspaceRepository
+from application import (
+    ProjectRepository,
+    TaskEventRepository,
+    TaskRepository,
+    WorkspaceRepository,
+)
 from domain import (
     Project,
     ProjectId,
     Task,
+    TaskEvent,
+    TaskEventId,
+    TaskEventType,
     TaskId,
     TaskStatus,
     UserId,
     Workspace,
     WorkspaceId,
 )
-from infrastructure.database.models import ProjectModel, TaskModel, WorkspaceModel
+from infrastructure.database.models import (
+    ProjectModel,
+    TaskEventModel,
+    TaskModel,
+    WorkspaceModel,
+)
 
 
 def _to_workspace_model(workspace: Workspace) -> WorkspaceModel:
@@ -91,6 +104,26 @@ def _to_task_domain(model: TaskModel) -> Task:
     )
 
 
+def _to_task_event_model(task_event: TaskEvent) -> TaskEventModel:
+    return TaskEventModel(
+        id=task_event.id.value,
+        task_id=task_event.task_id.value,
+        event_type=task_event.event_type.value,
+        payload=task_event.payload,
+        created_at=task_event.created_at,
+    )
+
+
+def _to_task_event_domain(model: TaskEventModel) -> TaskEvent:
+    return TaskEvent(
+        id=TaskEventId(model.id),
+        task_id=TaskId(model.task_id),
+        event_type=TaskEventType(model.event_type),
+        payload=model.payload,
+        created_at=model.created_at,
+    )
+
+
 class SqlAlchemyTaskRepository(TaskRepository):
     """SQLAlchemy-backed task repository."""
 
@@ -109,19 +142,63 @@ class SqlAlchemyTaskRepository(TaskRepository):
             return None
         return _to_task_domain(model)
 
-    def list_by_project(self, project_id: ProjectId) -> Sequence[Task]:
+    def list_by_project(
+        self,
+        project_id: ProjectId,
+        *,
+        offset: int = 0,
+        limit: int | None = None,
+    ) -> Sequence[Task]:
         """List task aggregates that belong to a project."""
         statement = (
             select(TaskModel)
             .where(TaskModel.project_id == project_id.value)
             .order_by(TaskModel.created_at, TaskModel.id)
         )
+
+        if offset > 0:
+            statement = statement.offset(offset)
+
+        if limit is not None:
+            statement = statement.limit(limit)
+
         models = self._session.scalars(statement).all()
         return [_to_task_domain(model) for model in models]
+
+    def count_by_project(self, project_id: ProjectId) -> int:
+        """Count task aggregates that belong to a project."""
+        statement = (
+            select(func.count())
+            .select_from(TaskModel)
+            .where(TaskModel.project_id == project_id.value)
+        )
+        return self._session.execute(statement).scalar_one()
 
     def remove(self, task: Task) -> None:
         """Delete a task aggregate by identifier."""
         self._session.execute(delete(TaskModel).where(TaskModel.id == task.id.value))
+
+
+class SqlAlchemyTaskEventRepository(TaskEventRepository):
+    """SQLAlchemy-backed task event repository."""
+
+    def __init__(self, session: Session) -> None:
+        """Bind the repository to an active SQLAlchemy session."""
+        self._session = session
+
+    def add(self, task_event: TaskEvent) -> None:
+        """Insert a task event in the current session."""
+        self._session.add(_to_task_event_model(task_event))
+
+    def list_by_task(self, task_id: TaskId) -> Sequence[TaskEvent]:
+        """List task audit events ordered by creation time."""
+        statement = (
+            select(TaskEventModel)
+            .where(TaskEventModel.task_id == task_id.value)
+            .order_by(TaskEventModel.created_at, TaskEventModel.id)
+        )
+        models = self._session.scalars(statement).all()
+        return [_to_task_event_domain(model) for model in models]
 
 
 class SqlAlchemyProjectRepository(ProjectRepository):

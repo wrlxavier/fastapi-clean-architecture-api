@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import Date, DateTime, ForeignKey, String, Text, Uuid
+from sqlalchemy import JSON, Date, DateTime, ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from infrastructure.database.base import Base
@@ -76,3 +76,25 @@ class TaskModel(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
     project: Mapped[ProjectModel] = relationship(back_populates="tasks")
+    events: Mapped[list[TaskEventModel]] = relationship(
+        back_populates="task",
+        cascade="all, delete-orphan",
+    )
+
+
+class TaskEventModel(Base):
+    """Task audit-event persistence model."""
+
+    __tablename__ = "task_events"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
+    task_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("tasks.id", ondelete="CASCADE"),
+        index=True,
+    )
+    event_type: Mapped[str] = mapped_column("type", String(64))
+    payload: Mapped[dict[str, str]] = mapped_column(JSON())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+    task: Mapped[TaskModel] = relationship(back_populates="events")

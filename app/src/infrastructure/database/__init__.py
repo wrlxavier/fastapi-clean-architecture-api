@@ -1,9 +1,15 @@
 """Database infrastructure for SQLAlchemy-backed persistence."""
 
 from infrastructure.database.base import Base
-from infrastructure.database.models import ProjectModel, TaskModel, WorkspaceModel
+from infrastructure.database.models import (
+    ProjectModel,
+    TaskEventModel,
+    TaskModel,
+    WorkspaceModel,
+)
 from infrastructure.database.repositories import (
     SqlAlchemyProjectRepository,
+    SqlAlchemyTaskEventRepository,
     SqlAlchemyTaskRepository,
     SqlAlchemyWorkspaceRepository,
 )
@@ -17,9 +23,11 @@ from infrastructure.database.unit_of_work import SqlAlchemyUnitOfWork
 __all__ = [
     "Base",
     "ProjectModel",
+    "TaskEventModel",
     "TaskModel",
     "WorkspaceModel",
     "SqlAlchemyProjectRepository",
+    "SqlAlchemyTaskEventRepository",
     "SqlAlchemyTaskRepository",
     "SqlAlchemyWorkspaceRepository",
     "SqlAlchemyUnitOfWork",

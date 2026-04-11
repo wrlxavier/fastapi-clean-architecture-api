@@ -74,3 +74,14 @@ def test_task_rejects_invalid_status_transitions(
 def test_task_requires_non_empty_title() -> None:
     with pytest.raises(ValueError, match="task title must not be empty"):
         build_task(title="   ")
+
+
+def test_task_assignment_updates_assignee_and_timestamp() -> None:
+    task = build_task()
+    assigned_at = datetime(2026, 4, 11, 17, 0, tzinfo=UTC)
+    assignee_id = UserId.new()
+
+    task.assign_to_user(assignee_id, occurred_at=assigned_at)
+
+    assert task.assigned_to == assignee_id
+    assert task.updated_at == assigned_at

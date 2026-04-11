@@ -55,3 +55,15 @@ class TaskId:
     def new(cls) -> Self:
         """Create a new task identifier."""
         return cls(_new_uuid())
+
+
+@dataclass(frozen=True, slots=True)
+class TaskEventId:
+    """Unique identifier for a task event."""
+
+    value: UUID
+
+    @classmethod
+    def new(cls) -> Self:
+        """Create a new task event identifier."""
+        return cls(_new_uuid())
